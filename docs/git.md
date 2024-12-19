@@ -23,7 +23,7 @@ git push origin feature/기능-이름
 
 ## 기능 개발 완료 후 코드 검토 받기
 
-1. [프로젝트 github](https://github.com/ImTotem/Koala)로 이동
+1. [프로젝트 github](https://github.com/byeok99/malppot-back)로 이동
 
 2. ![Pull Requests](imgs/pr_location.png)
 
