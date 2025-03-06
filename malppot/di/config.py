@@ -25,8 +25,10 @@ class ConfigContainer(containers.DeclarativeContainer):
                 refresh_token_expire_days= config.jwt.refresh_token_expire_days(),
                 algorithm= config.jwt.algorithm(),
             ),
-            openAI = OpenAIConfig(
+            openai = OpenAIConfig(
                 api_key= config.openai.api_key(),
+                model= config.openai.model(),
+                instruction= config.openai.instruction(),
             )
         ).model_dump()
     )

@@ -16,11 +16,13 @@ class JWTConfig(BaseSettings):
 
 class OpenAIConfig(BaseSettings):
     api_key: str
+    model: str
+    instruction: str
 
 class Config(BaseSettings):
     db: DBConfig
     jwt: JWTConfig
-    openAI: OpenAIConfig
+    openai: OpenAIConfig
 
 __all__ = (
     'DBConfig',

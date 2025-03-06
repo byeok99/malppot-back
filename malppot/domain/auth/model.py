@@ -17,14 +17,6 @@ class RegisterRequest(BaseModel):
     password: str
     gender: str
 
-class Gender(str, enum.Enum):
-    W="W"
-    M="M"
-
-class Role(str, enum.Enum):
-    User="User"
-    Admin="Admin"
-
 class User(Base):
     __tablename__ = 'users'
 
@@ -33,9 +25,9 @@ class User(Base):
     password = Column(String(255), nullable=False)
     username = Column(String(20), nullable=False)
     email = Column(String(100), nullable=False, unique=True)
-    gender = Column(Enum('W', 'M'))
+    gender = Column(Enum('w', 'm'))
     join_date = Column(DateTime(timezone=True), server_default=func.now())
-    role = Column(Enum('User', 'Admin'))
+    role = Column(Enum('user', 'admin'))
 
     def __hash__(self) -> hash:
         return hash(self.user_idx)

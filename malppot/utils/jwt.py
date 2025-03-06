@@ -1,12 +1,16 @@
 import jwt
 import datetime
+from malppot.conf.settings import JWTConfig
 
 class JWTService:
-    def __init__(self, secret_key:str, access_token_expire_minutes: int, refresh_token_expire_days: int, algorithm: str):
-        self.secret_key = secret_key
-        self.access_token_expire_minutes = access_token_expire_minutes
-        self.refresh_token_expire_days = refresh_token_expire_days
-        self.algorithm = algorithm
+    def __init__(self, config:JWTConfig | dict):
+        if isinstance(config, dict):
+            config = JWTConfig(**config)
+
+        self.secret_key = config.secret_key
+        self.access_token_expire_minutes = config.access_token_expire_minutes
+        self.refresh_token_expire_days = config.refresh_token_expire_days
+        self.algorithm = config.algorithm
 
     def create_access_token(self, user_id) -> str:
         payload = {

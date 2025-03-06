@@ -2,6 +2,7 @@ from dependency_injector import containers, providers
 from malppot.di.config import ConfigContainer
 from malppot.conf.db import DatabaseSession
 from malppot.di.auth import _AuthContainer
+from malppot.di.malbeot import _MalbeotContainer
 from malppot.utils.jwt import JWTService
 
 class DI(containers.DeclarativeContainer):
@@ -9,33 +10,24 @@ class DI(containers.DeclarativeContainer):
 
     db = providers.Singleton(
         DatabaseSession,
-        db_driver=config.db.driver,
-        db_user=config.db.user,
-        db_password=config.db.password,
-        db_host=config.db.host,
-        db_port=config.db.port,
-        db_name=config.db.name,
+        config = config.db,
     )
 
     jwt_service = providers.Singleton(
         JWTService,
-        secret_key=config.jwt.secret_key,
-        access_token_expire_minutes=config.jwt.access_token_expire_minutes,
-        refresh_token_expire_days=config.jwt.refresh_token_expire_days,
-        algorithm=config.jwt.algorithm,
+        config=config.jwt,
     )
 
     auth = providers.Container(
         _AuthContainer,
         db=db,
     )
-    #
-    # # ✅ MalbeotContainer를 포함 (DB 및 OpenAI API 키 주입)
-    # malbeot = providers.Container(
-    #     _MalbeotContainer,
-    #     db=db.provided,
-    #     api_key=config.provided.openai.api_key,
-    # )
+
+    malbeot = providers.Container(
+        _MalbeotContainer,
+        config=config.openai,
+        db=db,
+    )
 
 
 __all__ = (
