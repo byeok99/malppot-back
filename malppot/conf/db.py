@@ -1,24 +1,22 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
+from malppot.conf.settings import DBConfig
+
+
 class DatabaseSession :
-    def __init__(self,
-                 db_driver: str,
-                 db_user: str,
-                 db_password: str,
-                 db_host: str,
-                 db_port: int,
-                 db_name: str
-                 ):
+    def __init__(self, config:DBConfig):
+        if isinstance(config, dict):
+            config = DBConfig(**config)
 
-        self.db_driver = db_driver
-        self.db_user = db_user
-        self.db_password = db_password
-        self.db_host = db_host
-        self.db_port = db_port
-        self.db_name = db_name
+        self.driver = config.driver
+        self.user = config.user
+        self.password = config.password
+        self.host = config.host
+        self.port = config.port
+        self.name = config.name
 
-        self.DATABASE_URL = f"{self.db_driver}://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+        self.DATABASE_URL = f"{self.driver}://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
 
         self.engine = create_engine(self.DATABASE_URL, echo=True)
 
