@@ -28,6 +28,7 @@ class ConfigContainer(containers.DeclarativeContainer):
             openai = OpenAIConfig(
                 api_key= config.openai.api_key(),
                 model= config.openai.model(),
+                url=config.openai.url(),
                 instruction= config.openai.instruction(),
             )
         ).model_dump()

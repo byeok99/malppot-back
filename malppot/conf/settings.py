@@ -17,6 +17,7 @@ class JWTConfig(BaseSettings):
 class OpenAIConfig(BaseSettings):
     api_key: str
     model: str
+    url: str
     instruction: str
 
 class Config(BaseSettings):
