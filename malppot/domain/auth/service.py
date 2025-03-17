@@ -7,10 +7,10 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class AuthService:
     def __init__(self, db):
-        self.db_provider = db
+        self.db = db
 
     def get_user_by_id(self, _id:str) -> Optional[User]:
-        session = self.db_provider.get_session()
+        session = self.db.get_session()
         return session.query(User).filter(User.id == _id).first()
 
     def verify_password(self, origin_password:str, hashed_password:str) -> bool:
@@ -20,7 +20,7 @@ class AuthService:
         return pwd_context.hash(password)
 
     def register_user(self, name, email, id, password, gender):
-        session = self.db_provider.get_session()
+        session = self.db.get_session()
         if session.query(User).filter(User.id == id).first():
             raise ValueError("User id is already exist")
         if session.query(User).filter(User.email == email).first():
