@@ -54,7 +54,6 @@ async def connect(*, api_key: str, model: str, url: str) -> AsyncGenerator[
         await websocket.close()
 
 async def amerge(**streams: AsyncIterator[Any]) -> AsyncIterator[tuple[str, Any]]:
-    """Merge multiple streams into one stream."""
     nexts: dict[asyncio.Task, str] = {
         asyncio.create_task(anext(stream)): key for key, stream in streams.items()
     }
@@ -84,7 +83,8 @@ class OpenAIVoiceReactAgent(BaseModel):
         self,
         input_stream: AsyncIterator[str],
         send_output_chunk: Callable[[str], Coroutine[Any, Any, None]],
-    ) -> None: # str
+    # ) -> None: # str
+    ) -> AsyncGenerator[dict[str, str], None]:
         """
         Connect to the OpenAI API and send and receive messages.
 
@@ -94,29 +94,12 @@ class OpenAIVoiceReactAgent(BaseModel):
             Callback to receive output events from the model. Usually sends response.audio.delta events to the speaker.
 
         """
-        # formatted_tools: list[BaseTool] = [
-        #     tool if isinstance(tool, BaseTool) else tool_converter.wr(tool)  # type: ignore
-        #     for tool in self.tools or []
-        # ]
-        # tools_by_name = {tool.name: tool for tool in self.tools}
-        # tool_executor = VoiceToolExecutor(tools_by_name=tools_by_name)
-
         async with connect(
             model=self.model, api_key=self.api_key, url=self.url
         ) as (
             model_send,
             model_receive_stream,
         ):
-            # sent tools and instructions with initial chunk
-            # tool_defs = [
-            #     {
-            #         "type": "function",
-            #         "name": tool.name,
-            #         "description": tool.description,
-            #         "parameters": {"type": "object", "properties": tool.args},
-            #     }
-                # for tool in tools_by_name.values()
-            # ]
             await model_send(
                 {
                     "type": "session.update",
@@ -124,8 +107,7 @@ class OpenAIVoiceReactAgent(BaseModel):
                         "instructions": self.instructions,
                         "input_audio_transcription": {
                             "model": "whisper-1",
-                        },
-                        # "tools": tool_defs,
+                        }
                     },
                 }
             )
@@ -144,10 +126,6 @@ class OpenAIVoiceReactAgent(BaseModel):
 
                 if stream_key == "input_mic":
                     await model_send(data)
-                # elif stream_key == "tool_outputs":
-                #     print("tool output", data)
-                #     await model_send(data)
-                #     await model_send({"type": "response.create", "response": {}})
                 elif stream_key == "output_speaker":
                     t = data["type"]
                     if t == "response.audio.delta":
@@ -157,14 +135,15 @@ class OpenAIVoiceReactAgent(BaseModel):
                         send_output_chunk(json.dumps(data))
                     elif t == "error":
                         print("error:", data)
-                    # elif t == "response.function_call_arguments.done":
-                    #     print("tool call", data)
-                        # await tool_executor.add_tool_call(data)
                     elif t == "conversation.item.input_audio_transcription.completed":
                         print("user:", data["transcript"])
+                        data["speaker"] = "user"
+                        await send_output_chunk(json.dumps(data))
                         yield {"user": data["transcript"]}
                     elif t == "response.audio_transcript.done":
                         print("model:", data["transcript"])
+                        data["speaker"] = "model"
+                        await send_output_chunk(json.dumps(data))
                         yield {"model": data["transcript"]}
                     elif t in EVENTS_TO_IGNORE:
                         pass

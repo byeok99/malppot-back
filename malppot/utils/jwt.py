@@ -46,3 +46,14 @@ class JWTService:
 
     def get_items(self, token):
         return jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+
+    def get_user_id(self, token: str) -> str | None:
+        try:
+            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+            return payload.get("sub")
+        except jwt.ExpiredSignatureError:
+            print("Expired token")
+            return None
+        except jwt.InvalidTokenError:
+            print("Invalid token")
+            return None
