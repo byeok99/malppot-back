@@ -1,8 +1,7 @@
-from sqlalchemy import Column, Integer, String, Enum, ForeignKey, DateTime, Text
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy import Column, Integer, Enum, ForeignKey, DateTime, Text
+from sqlalchemy.orm import relationship
 from datetime import datetime
-
-Base = declarative_base()
+from malppot.conf.db_base import Base
 
 class AIMalbeotLog(Base):
     __tablename__ = "ai_malbeot_logs"
