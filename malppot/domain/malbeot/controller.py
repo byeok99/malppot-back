@@ -55,6 +55,4 @@ async def chats(
         input: ChatRequest,
         malbeot_service = Provide(DI.malbeot.service),
 ):
-    _user_idx = input.user_idx
-    _list = await malbeot_service.get_chat_list(_user_idx)
-    return _list
+    return await malbeot_service.get_chat_list(input.user_idx)

@@ -90,5 +90,4 @@ class MalbeotService:
         )
 
         result = session.execute(query)
-        data = result.all()
-        return data
+        return result.all()

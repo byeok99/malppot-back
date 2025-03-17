@@ -1,6 +1,6 @@
 from http.client import HTTPException
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Request, Depends, HTTPException, Response
+from fastapi import APIRouter, Request, HTTPException, Response
 from malppot.domain.auth.schema import LoginRequest, RegisterRequest
 from malppot.di import DI
 
