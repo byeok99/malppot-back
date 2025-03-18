@@ -106,4 +106,3 @@ class MalbeotService:
         )
 
         return session.execute(query).all()
-

@@ -9,6 +9,7 @@ class ConfigContainer(containers.DeclarativeContainer):
         str(Path(__file__).parent.parent/"config.yaml"),
         required=True
     )
+
     config.from_dict(
         Config(
             db = DBConfig(

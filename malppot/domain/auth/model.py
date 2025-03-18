@@ -1,26 +1,13 @@
 import enum
 from sqlalchemy import Column, DateTime, Integer, String, Enum
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from pydantic import BaseModel
-
-Base = declarative_base()
-
-class LoginRequest(BaseModel):
-    id: str
-    pw: str
-
-class RegisterRequest(BaseModel):
-    name: str
-    email: str
-    id: str
-    password: str
-    gender: str
+from malppot.conf.db_base import Base
 
 class User(Base):
     __tablename__ = 'users'
 
-    user_idx = Column(Integer, primary_key=True)
+    user_idx = Column(Integer, primary_key=True, autoincrement=True)
     id = Column(String(50), nullable=False, unique=True)
     password = Column(String(255), nullable=False)
     username = Column(String(20), nullable=False)
@@ -28,6 +15,8 @@ class User(Base):
     gender = Column(Enum('w', 'm'))
     join_date = Column(DateTime(timezone=True), server_default=func.now())
     role = Column(Enum('user', 'admin'))
+
+    ai_malbeot_logs = relationship("AIMalbeotLog", back_populates="user")
 
     def __hash__(self) -> hash:
         return hash(self.user_idx)
@@ -39,6 +28,4 @@ class User(Base):
 
 __all__ = (
     'User',
-    'RegisterRequest',
-    'LoginRequest',
 )

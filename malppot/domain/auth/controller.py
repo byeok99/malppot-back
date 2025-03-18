@@ -1,27 +1,19 @@
 from http.client import HTTPException
-
-from fastapi import APIRouter, Request, Depends, HTTPException, Response
-from malppot.domain.auth.service import AuthService
-from malppot.utils.jwt import JWTService
-from malppot.domain.auth.model import LoginRequest, RegisterRequest
+from dependency_injector.wiring import Provide, inject
+from fastapi import APIRouter, Request, HTTPException, Response
+from malppot.domain.auth.schema import LoginRequest, RegisterRequest
 from malppot.di import DI
 
 router = APIRouter()
 
-def get_auth_service() -> AuthService:
-    return DI.auth.service()
-
-def get_jwt_service() -> JWTService:
-    return DI.jwt_service()
-
 @router.post("/login")
+@inject
 async def login(
         login_data: LoginRequest,
         response: Response,
-        auth_service=Depends(get_auth_service),
-        jwt_service=Depends(get_jwt_service)
-):
-
+        auth_service=Provide[DI.auth.service],  # : AuthService..
+        jwt_service=Provide[DI.jwt_service],
+) -> dict[str, str]:
     _id, _pw = login_data.id, login_data.pw
     user = auth_service.get_user_by_id(_id)
     if user is None or not auth_service.verify_password(_pw, user.password):
@@ -47,7 +39,7 @@ async def logout(response: Response):
 @router.post("/refresh")
 async def refresh(
     request: Request,
-    jwt_service: JWTService = Depends(get_jwt_service)
+    jwt_service=Provide[DI.jwt_service],
 ):
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
@@ -64,7 +56,7 @@ async def refresh(
 @router.post("/register")
 async def register(
     data: RegisterRequest,
-    service: AuthService = Depends(get_auth_service)
+    service=Provide[DI.auth.service],
 ):
     if not all([data.name, data.email, data.id, data.password]):
         raise HTTPException(status_code=400, detail="Invalid credentials")
