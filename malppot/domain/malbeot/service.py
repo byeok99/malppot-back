@@ -1,14 +1,13 @@
 import uuid
 from typing import List
 from fastapi import WebSocket
-
 from malppot.conf.settings import OpenAIConfig
-from typing import AsyncIterator, Any
+from typing import AsyncIterator
 from malppot.domain.malbeot.agent import OpenAIVoiceReactAgent
 from malppot.domain.malbeot.model import AIMalbeotLog
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from malppot.domain.malbeot.schema import ChatResponse
 
 class MalbeotService:
     def __init__(self, config: OpenAIConfig, db):
@@ -59,7 +58,7 @@ class MalbeotService:
             session.rollback()
             print(f"Error saving log: {e}")
 
-    async def get_chat_list(self, user_idx: int) -> List[AIMalbeotLog]:
+    async def get_chat_list(self, user_idx: int) -> List[ChatResponse]:
         session: AsyncSession = self.db.get_session()
 
         row_number_column = func.row_number().over(
@@ -88,7 +87,23 @@ class MalbeotService:
             .where(ranked_logs_cte.c.rn == 1)
             .order_by(desc(ranked_logs_cte.c.created_date))
         )
+        return session.execute(query).all()
 
-        result = session.execute(query)
-        data = result.all()
-        return data
+    async def get_chat(self, session_id: int) -> List[ChatResponse]:
+        session: AsyncSession = self.db.get_session()
+
+        query = (
+            select(
+                AIMalbeotLog.log_idx,
+                AIMalbeotLog.user_idx,
+                AIMalbeotLog.session_id,
+                AIMalbeotLog.chat_text,
+                AIMalbeotLog.speaker,
+                AIMalbeotLog.created_date,
+            )
+            .where(AIMalbeotLog.session_id == session_id)
+            .order_by(AIMalbeotLog.log_idx.asc())
+        )
+
+        return session.execute(query).all()
+
