@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
 class ChatRequest(BaseModel):
@@ -12,11 +12,12 @@ class ChatResponse(BaseModel):
     speaker: str
     created_date: datetime
 
-    class Config:
-        orm_mode = True
-        json_encoders = {
-            datetime: lambda dt: dt.isoformat(),
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={
+            datetime: lambda dt: dt.isoformat()
         }
+    )
 
 __all__ = (
     "ChatRequest",
