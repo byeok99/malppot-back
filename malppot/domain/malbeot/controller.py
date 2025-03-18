@@ -56,3 +56,11 @@ async def chats(
         malbeot_service = Provide(DI.malbeot.service),
 ):
     return await malbeot_service.get_chat_list(input.user_idx)
+
+@router.get("/chat/{session_id}", response_model=List[ChatResponse])
+@inject
+async def chat(
+        session_id: int,
+        malbeot_service = Provide(DI.malbeot.service)
+):
+    return await malbeot_service.get_chat(session_id)
