@@ -12,7 +12,6 @@ class JWTMiddleware(BaseHTTPMiddleware):
         self.algorithm = DI.config.jwt.algorithm
 
     async def dispatch(self, request: Request, call_next):
-        # open_paths = ["/auth", "/docs"]
         open_paths = ["/auth", "/docs", "/redoc", "/openapi.json"]
 
         if any(request.url.path.startswith(path) for path in open_paths):
