@@ -12,8 +12,11 @@ class JWTMiddleware(BaseHTTPMiddleware):
         self.algorithm = DI.config.jwt.algorithm
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path.startswith("/auth"):
+        open_paths = ["/auth", "/docs"]
+
+        if any(request.url.path.startswith(path) for path in open_paths):
             return await call_next(request)
+
         token = request.headers.get("Authorization")
         if token and token.startswith("Bearer "):
             token = token.split(" ")[1]
