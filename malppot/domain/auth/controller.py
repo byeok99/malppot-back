@@ -37,6 +37,7 @@ async def logout(response: Response):
     return {"message": "Successfully logged out"}
 
 @router.post("/refresh")
+@inject
 async def refresh(
     request: Request,
     jwt_service=Provide[DI.jwt_service],
@@ -54,15 +55,16 @@ async def refresh(
     return {"access_token": new_access_token}
 
 @router.post("/register")
+@inject
 async def register(
     data: RegisterRequest,
-    service=Provide[DI.auth.service],
+    auth_service=Provide[DI.auth.service],  # : AuthService..
 ):
-    if not all([data.name, data.email, data.id, data.password]):
+    if not all([data.name, data.email, data.id, data.password, data.gender]):
         raise HTTPException(status_code=400, detail="Invalid credentials")
 
     try:
-        user = service.register_user(
+        user = auth_service.register_user(
             name=data.name,
             email=data.email,
             id=data.id,
