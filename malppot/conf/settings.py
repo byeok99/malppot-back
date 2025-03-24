@@ -20,14 +20,28 @@ class OpenAIConfig(BaseSettings):
     url: str
     instruction: str
 
+class AzureSpeechConfig(BaseSettings):
+    azure_key: str
+    azure_region: str
+    
+class HeyGenConfig(BaseSettings):
+    api_key: str
+    base_url: str
+    avatar_id: str
+    voice_id: str
+
 class Config(BaseSettings):
     db: DBConfig
     jwt: JWTConfig
     openai: OpenAIConfig
+    azure_speech: AzureSpeechConfig
+    heygen: HeyGenConfig
 
 __all__ = (
     'DBConfig',
     'JWTConfig',
     'OpenAIConfig',
+    'AzureSpeechConfig'
+    'HeyGenConfig',
     'Config',
 )
