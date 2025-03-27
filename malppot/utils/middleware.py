@@ -4,7 +4,6 @@ import jwt
 from starlette.responses import JSONResponse
 from malppot.di import DI
 
-
 class JWTMiddleware(BaseHTTPMiddleware):
     def __init__(self, app):
         super().__init__(app)
