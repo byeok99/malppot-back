@@ -29,6 +29,7 @@ class HeyGenConfig(BaseSettings):
     base_url: str
     avatar_id: str
     voice_id: str
+    callback_url: str
 
 class Config(BaseSettings):
     db: DBConfig

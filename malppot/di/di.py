@@ -3,9 +3,9 @@ from malppot.di.config import ConfigContainer
 from malppot.conf.db import DatabaseSession
 from malppot.di.auth import _AuthContainer
 from malppot.di.malbeot import _MalbeotContainer
+from malppot.di.pronunciation import _PronunciationContainer
+from malppot.di.heygen import _HeygenContainer
 from malppot.utils.jwt import JWTService
-from malppot.domain.pronunciation.service import PronunciationService
-from malppot.domain.heygen.service import HeyGenService 
 
 class DI(containers.DeclarativeContainer):
     config = providers.Container(ConfigContainer).config
@@ -31,15 +31,16 @@ class DI(containers.DeclarativeContainer):
         db=db,
     )
     
-    azure_speech_service = providers.Singleton(
-        PronunciationService,
+    pronunciation = providers.Container(
+        _PronunciationContainer,
         config=config.azure_speech,
+        db=db,
     )
 
-    heygen_service = providers.Singleton(
-        HeyGenService,
-        api_key=config.heygen.api_key,
-        base_url=config.heygen.base_url,
+    heygen = providers.Container(
+        _HeygenContainer,
+        config=config.heygen,
+        db=db,
     )
 
 __all__ = (

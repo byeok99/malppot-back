@@ -1,10 +1,12 @@
 import azure.cognitiveservices.speech as speechsdk
-from ..settings import azure_settings
+from malppot.conf.settings import AzureSpeechConfig
 
 class PronunciationService:
-    def __init__(self):
-        self.azure_key = azure_settings.azure_key
-        self.azure_region = azure_settings.azure_region
+    def __init__(self, config: AzureSpeechConfig, db):
+        if isinstance(config, dict):
+            config = AzureSpeechConfig(**config)
+        self.config = config
+        self.db = db
 
     def assess_pronunciation(self, audio_file_path: str, reference_text: str):
         speech_config = speechsdk.SpeechConfig(subscription=self.azure_key, region=self.azure_region)

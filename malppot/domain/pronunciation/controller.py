@@ -1,16 +1,17 @@
 from fastapi import APIRouter, UploadFile, File, Form
-from .service import PronunciationService
+from dependency_injector.wiring import Provide
 from .schema import PronunciationAssessmentResponse
 import tempfile
+from malppot.di import DI
 
-router = APIRouter(prefix="/api/pronunciation", tags=["Pronunciation Assessment"])
+router = APIRouter()
 
-pronunciation_service = PronunciationService()
 
 @router.post("/evaluate", response_model=PronunciationAssessmentResponse)
 async def evaluate_pronunciation(
     file: UploadFile = File(...),
-    reference_text: str = Form(...)
+    reference_text: str = Form(...),
+    pronunciation_service = Provide[DI.pronunciation.service],
 ):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
         tmp.write(await file.read())

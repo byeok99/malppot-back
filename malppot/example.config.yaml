@@ -23,7 +23,7 @@ azure_speech:
   azure_region: ""
 
 heygen:
-  api_key: "N2FjOGZmOTVmNWY0NGIzZjg4MWE4MThhYmEzZDY4ZWEtMTc0MDQ5MTE0Ng"
+  api_key: ""
   base_url: "https://api.heygen.com/v2"
-  avatar_id: "your-fixed-avatar-id"
-  voice_id: "your-fixed-voice-id"
+  avatar_id: ""
+  voice_id: ""

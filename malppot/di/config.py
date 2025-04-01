@@ -39,8 +39,9 @@ class ConfigContainer(containers.DeclarativeContainer):
             heygen=HeyGenConfig(
                 api_key=config.heygen.api_key(),
                 base_url=config.heygen.base_url(),
-                avatar_id=config.heygen.avatar_id,
-                voice_id=config.heygen.voice_id
+                avatar_id=config.heygen.avatar_id(),
+                voice_id=config.heygen.voice_id(),
+                callback_url=config.heygen.callback_url(),
             )
         ).model_dump()
     )
