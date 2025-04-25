@@ -1,75 +1,71 @@
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 from dependency_injector.wiring import inject, Provide
+from malppot.domain.heygen.schema import HeyGenGenerateRequest, HeyGenVideoResponse
 from sqlalchemy import text
 from malppot.di import DI
+import jwt
+
 
 router = APIRouter()
-
-class HeyGenGenerateRequest(BaseModel):
-    text: str
-
-class HeyGenVideoResponse(BaseModel):
-    video_url: str
 
 @router.post("/generate-video", response_model=HeyGenVideoResponse)
 @inject
 async def generate_video(
-    request: Request,  # <-- 쿼리 파라미터를 받기 위해 추가
-    body: HeyGenGenerateRequest,  # 본문에서 받는 실제 텍스트
+    request: Request,
+    body: HeyGenGenerateRequest,
     heygen_service = Provide[DI.heygen.service],
     jwt_service = Provide[DI.jwt_service],
     auth_service = Provide[DI.auth.service],
 ):
-    token = request.query_params.get("access_token")
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    token = auth_header.replace("Bearer ", "").strip()
     if not token:
-        raise HTTPException(status_code=401, detail="Access token missing")
-
-    user_id = jwt_service.get_user_id(token)
-    user = auth_service.get_user_by_id(user_id)
-
-    # user.user_idx 같은 걸 활용해서 내부에서 DB에 기록하는 것도 가능
-    video_id = await heygen_service.generate_video(script=body.text, user_id=user.user_idx)
+        print("No access token")
+        return
+    try:
+        user_id = jwt_service.get_user_id(token)
+        if not user_id:
+            print("Invalid Token")
+            return
+    except jwt.ExpiredSignatureError:
+        print("Token has expired")
+        return
+    
+    try:
+        user = auth_service.get_user_by_id(user_id)
+    except HTTPException as e:
+        print(f"User not found: {e.detail}")
+        return
+    video_id = await heygen_service.generate_video(script=body.text, user_idx=user.user_idx)
 
     return {"video_id": video_id}
 
-@router.post("/heygen/callback")
+@router.post("/callback")
 @inject
 async def heygen_callback(
     request: Request,
-    db = Provide[DI.db]
+    heygen_service = Provide[DI.heygen.service],
 ):
     data = await request.json()
-    print("📩 콜백 수신:", data)
+    print("콜백 수신:", data)
 
-    video_id = data.get("video_id")
-    video_url = data.get("video_url")
+    event_type = data.get("event_type")
+    if event_type != "avatar_video.success":
+        print(f"무시된 이벤트: {event_type}")
+        return {"message": "Skipped non-video callback"}
 
-    if not video_id:
-        return {"message": "Missing video_id"}
+    event_data = data.get("event_data", {})
+    video_id = event_data.get("video_id")
+    raw_url = event_data.get("url")
+    video_url = raw_url.split("?")[0] if raw_url else None
 
-    session = db.get_session()
-    try:
-        session.execute(
-            text("""
-                UPDATE video_logs
-                SET
-                    video_url = :video_url
-                WHERE video_id = :video_id
-            """),
-            {
-                "video_id": video_id,
-                "video_url": video_url,
-            }
-        )
-        session.commit()
-        return {"message": "Callback handled successfully"}
-    except Exception as e:
-        session.rollback()
-        print(f"❌ DB 업데이트 실패: {e}")
-        return {"message": "Internal server error"}
-    finally:
-        session.close()
+    if not video_id or not video_url:
+        return {"message": "Missing video_id or url"}
+
+    heygen_service.update_video(video_id=video_id, video_url=video_url)
         
 @router.get("/videos/{video_id}")
 @inject
@@ -78,28 +74,17 @@ async def get_video_by_id(
     request: Request,
     jwt_service = Provide[DI.jwt_service],
     auth_service = Provide[DI.auth.service],
-    db = Provide[DI.db],
+    heygen_service = Provide[DI.heygen.service],
 ):
-    token = request.query_params.get("access_token")
-    if not token:
-        raise HTTPException(status_code=401, detail="Access token missing")
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authorization header missing")
 
+    token = auth_header.replace("Bearer ", "").strip()
     user_id = jwt_service.get_user_id(token)
-    user = auth_service.get_user_by_id(user_id)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
-    session = db.get_session()
-    try:
-        result = session.execute(
-            text("""
-                SELECT video_id, script, status, video_url, created_at
-                FROM video_logs
-                WHERE video_id = :video_id AND user_id = :user_id
-            """),
-            {"video_id": video_id, "user_id": user.user_idx}
-        )
-        row = result.fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="해당 영상이 없거나 권한이 없습니다.")
-        return dict(row)
-    finally:
-        session.close()
+    user = auth_service.get_user_by_id(user_id)
+    
+    return heygen_service.get_video(video_id=video_id, user_idx=user.user_idx)

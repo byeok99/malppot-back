@@ -1,5 +1,6 @@
 import httpx
 from malppot.conf.settings import HeyGenConfig
+from fastapi import HTTPException
 from sqlalchemy import text
 
 class HeyGenService:
@@ -8,6 +9,47 @@ class HeyGenService:
             config = HeyGenConfig(**config)
         self.config = config
         self.db = db
+    def get_video(self, video_id: str, user_idx:int):
+        session = self.db.get_session()
+        try:
+            result = session.execute(
+                text("""
+                    SELECT video_id, script, status, video_url, created_at
+                    FROM video_logs
+                    WHERE video_id = :video_id AND user_id = :user_id
+                """),
+                {"video_id": video_id, "user_id": user_idx}
+            )
+            row = result.mappings().fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="해당 영상이 없거나 권한이 없습니다.")
+            return dict(row)
+        finally:
+            session.close()  
+    
+    def update_video(self, video_id: str, video_url: str):
+        session = self.db.get_session()
+        try:
+            session.execute(
+                text("""
+                    UPDATE video_logs
+                    SET video_url = :video_url,
+                        status = :status
+                    WHERE video_id = :video_id
+                """),
+                {
+                    "video_id": video_id,
+                    "video_url": video_url,
+                    "status": "done"
+                }
+            )
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            raise HTTPException(status_code=500, detail=f"DB update error: {e}")
+        finally:
+            session.close()
+            
 
     async def generate_video(self, script: str, user_idx:int) -> str:
         headers = {
@@ -32,7 +74,8 @@ class HeyGenService:
                   "type": "text",
                   "voice_id": self.config.voice_id,
                   "input_text": script,
-                  "locale": "ko-KR"
+                  "emotion" : 'Friendly',
+                  "locale": 'ko-KR'
                 },
                 "background": {
                   "type": "color",

@@ -5,4 +5,4 @@ class HeyGenGenerateRequest(BaseModel):
     text: str
 
 class HeyGenVideoResponse(BaseModel):
-    video_url: str
+    video_id: str

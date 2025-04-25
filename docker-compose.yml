@@ -4,6 +4,7 @@ version: "3.8"
 services:
   backend:
     build: .
+    platform: linux/amd64
     container_name: malppot-backend
     ports:
       - "8000:8000"
