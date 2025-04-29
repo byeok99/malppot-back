@@ -1,6 +1,6 @@
 from pathlib import Path
 from dependency_injector import containers, providers
-from malppot.conf.settings import DBConfig, JWTConfig, OpenAIConfig, Config
+from malppot.conf.settings import DBConfig, JWTConfig, OpenAIConfig, AzureSpeechConfig, HeyGenConfig,Config
 
 class ConfigContainer(containers.DeclarativeContainer):
     config = providers.Configuration()
@@ -31,6 +31,17 @@ class ConfigContainer(containers.DeclarativeContainer):
                 model= config.openai.model(),
                 url=config.openai.url(),
                 instruction= config.openai.instruction(),
+            ),
+            azure_speech=AzureSpeechConfig(
+                azure_key=config.azure_speech.azure_key(),
+                azure_region=config.azure_speech.azure_region(),
+            ),
+            heygen=HeyGenConfig(
+                api_key=config.heygen.api_key(),
+                base_url=config.heygen.base_url(),
+                avatar_id=config.heygen.avatar_id(),
+                voice_id=config.heygen.voice_id(),
+                callback_url=config.heygen.callback_url(),
             )
         ).model_dump()
     )

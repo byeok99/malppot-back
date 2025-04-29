@@ -18,3 +18,12 @@ openai:
   url: ""
   instruction: ""
 
+azure_speech:
+  azure_key: ""
+  azure_region: ""
+
+heygen:
+  api_key: ""
+  base_url: "https://api.heygen.com/v2"
+  avatar_id: ""
+  voice_id: ""
