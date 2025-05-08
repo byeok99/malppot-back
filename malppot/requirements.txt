@@ -29,5 +29,7 @@ langchain-core==0.1.35
 azure-cognitiveservices-speech
 python-multipart==0.0.6
 pymysql==1.1.0
-jamo
-konlpy
+jamo==0.4.1
+konlpy==0.6.0
+pandas==2.2.3
+numpy==1.24
