@@ -47,11 +47,11 @@ CREATE TABLE IF NOT EXISTS pronunciation_logs (
     pronunciation_id VARCHAR(100) PRIMARY KEY,
     user_id INT NOT NULL,
     reference_text TEXT NOT NULL,
-    recognized_text TEXT NOT NULL,
     accuracy_score FLOAT NOT NULL,
     fluency_score FLOAT NOT NULL,
     completeness_score FLOAT NOT NULL,
     phoneme_scores JSON,
+    feedback JSON,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_idx) ON DELETE CASCADE
 );
