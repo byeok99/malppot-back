@@ -77,6 +77,11 @@ class PronunciationService:
 
         feedback = map_jamos_with_scores(word_phoneme_scores)
 
+        # 평균 점수 계산 추가
+        for f in feedback:
+            scores = [s["score"] for s in f["scores"] if "score" in s]
+            f["average_score"] = round(sum(scores) / len(scores), 2) if scores else 0.0
+
         return {
             "reference_text": reference_text,
             "accuracy_score": assessment_result.accuracy_score,
