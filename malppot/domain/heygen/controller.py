@@ -1,11 +1,7 @@
 from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel
 from dependency_injector.wiring import inject, Provide
 from malppot.domain.heygen.schema import HeyGenGenerateRequest, HeyGenVideoResponse
-from sqlalchemy import text
 from malppot.di import DI
-import jwt
-
 
 router = APIRouter()
 
@@ -19,28 +15,12 @@ async def generate_video(
     auth_service = Provide[DI.auth.service],
 ):
     auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authorization header missing")
-    token = auth_header.replace("Bearer ", "").strip()
-    if not token:
-        print("No access token")
-        return
-    try:
-        user_id = jwt_service.get_user_id(token)
-        if not user_id:
-            print("Invalid Token")
-            return
-    except jwt.ExpiredSignatureError:
-        print("Token has expired")
-        return
-    
-    try:
-        user = auth_service.get_user_by_id(user_id)
-    except HTTPException as e:
-        print(f"User not found: {e.detail}")
-        return
-    video_id = await heygen_service.generate_video(script=body.text, user_idx=user.user_idx)
+    token = auth_header.replace("Bearer ", "").strip() if auth_header else None
+    user_id = jwt_service.get_user_id(token)
+    user = auth_service.get_user_by_id(user_id)
 
+    video_id = await heygen_service.generate_video(script=body.text, user_idx=user.user_idx)
+    print(video_id)
     return {"video_id": video_id}
 
 @router.post("/callback")
@@ -66,7 +46,7 @@ async def heygen_callback(
         return {"message": "Missing video_id or url"}
 
     heygen_service.update_video(video_id=video_id, video_url=video_url)
-        
+
 @router.get("/videos/{video_id}")
 @inject
 async def get_video_by_id(
@@ -77,14 +57,8 @@ async def get_video_by_id(
     heygen_service = Provide[DI.heygen.service],
 ):
     auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authorization header missing")
-
-    token = auth_header.replace("Bearer ", "").strip()
+    token = auth_header.replace("Bearer ", "").strip() if auth_header else None
     user_id = jwt_service.get_user_id(token)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
     user = auth_service.get_user_by_id(user_id)
-    
+
     return heygen_service.get_video(video_id=video_id, user_idx=user.user_idx)

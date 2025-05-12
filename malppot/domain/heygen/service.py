@@ -9,6 +9,7 @@ class HeyGenService:
             config = HeyGenConfig(**config)
         self.config = config
         self.db = db
+
     def get_video(self, video_id: str, user_idx:int):
         session = self.db.get_session()
         try:
