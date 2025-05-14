@@ -59,8 +59,8 @@ async def heygen_callback(
 
     event_data = data.get("event_data", {})
     video_id = event_data.get("video_id")
-    raw_url = event_data.get("url")
-    video_url = raw_url.split("?")[0] if raw_url else None
+    video_url = event_data.get("url")
+    # video_url = raw_url.split("?")[0] if raw_url else None # 수정
 
     if not video_id or not video_url:
         return {"message": "Missing video_id or url"}
