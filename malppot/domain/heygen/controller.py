@@ -39,6 +39,7 @@ async def generate_video(
     except HTTPException as e:
         print(f"User not found: {e.detail}")
         return
+    
     video_id = await heygen_service.generate_video(script=body.text, user_idx=user.user_idx)
 
     return {"video_id": video_id}
