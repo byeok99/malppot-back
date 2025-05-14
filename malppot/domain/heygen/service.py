@@ -52,10 +52,9 @@ class HeyGenService:
             session.close()
         
     async def generate_video(self, script: str, user_idx:int) -> str:
+        one_week_ago = datetime.utcnow() - timedelta(days=7)
+        session = self.db.get_session()
         try:
-            one_week_ago = datetime.utcnow() - timedelta(days=7)
-            session = self.db.get_session()
-
             # 1. 최근 7일 이내 동일 스크립트 조회
             result = session.execute(
                 text("""
