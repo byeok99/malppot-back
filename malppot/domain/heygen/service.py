@@ -62,15 +62,12 @@ class HeyGenService:
                 SELECT video_id
                 FROM video_logs
                 WHERE script = :script
-                  AND user_id = :user_id
                   AND created_at >= :threshold
-                  AND status = 'done'
                 ORDER BY created_at DESC
                 LIMIT 1
                 """),
                 {
                     "script": script,
-                    "user_id": user_idx,
                     "threshold": one_week_ago,
                 }
             )
