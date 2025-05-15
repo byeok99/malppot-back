@@ -8,7 +8,6 @@ import tempfile, shutil, jwt, os
 
 router = APIRouter()
 
-
 @router.post("/convert", response_model=PronunciationConvertResponse)
 @inject
 async def con_pronunciation(

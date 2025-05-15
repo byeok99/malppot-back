@@ -14,7 +14,7 @@ app = create_app()
 # app.add_middleware(JWTMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],                      # 모든 HTTP 메서드 허용
     allow_headers=["*"],                      # 모든 헤더 허용
