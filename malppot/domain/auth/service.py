@@ -9,9 +9,10 @@ class AuthService:
     def __init__(self, db):
         self.db = db
 
-    def get_user_by_id(self, _id:str) -> Optional[User]:
+    def get_user_by_id(self, _id: str) -> Optional[User | int]:
         session = self.db.get_session()
-        return session.query(User).filter(User.id == _id).first()
+        user = session.query(User).filter(User.id == _id).first()
+        return user if user else 1
 
     def verify_password(self, origin_password:str, hashed_password:str) -> bool:
         return pwd_context.verify(origin_password, hashed_password)
