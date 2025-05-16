@@ -105,6 +105,7 @@ class OpenAIVoiceReactAgent(BaseModel):
                     "type": "session.update",
                     "session": {
                         "instructions": self.instructions,
+                        "voice": "echo",
                         "input_audio_transcription": {
                             "model": "whisper-1",
                         }

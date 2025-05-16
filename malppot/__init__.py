@@ -6,7 +6,11 @@ from malppot.domain.pronunciation.controller import router as pronunciation_rout
 from malppot.domain.heygen.controller import router as heygen_router
 
 def create_app() -> FastAPI:
-    app = FastAPI(debug=True)
+    app = FastAPI(
+        debug=True,
+        docs_url="/api/docs",
+        redoc_url="/api/redoc",
+    )
 
     # DI Container 초기화
     di_container = DI()
