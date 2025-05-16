@@ -99,7 +99,8 @@ class HeyGenService:
                   "type": "text",
                   "voice_id": self.config.voice_id,
                   "input_text": script,
-                  "emotion" : 'Friendly',
+                  "emotion" : 'Friendly', 
+                  "speed": 0.7,
                   "locale": 'ko-KR'
                 },
                 "background": {
