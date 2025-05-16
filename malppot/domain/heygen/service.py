@@ -2,6 +2,7 @@ import httpx
 from malppot.conf.settings import HeyGenConfig
 from fastapi import HTTPException
 from sqlalchemy import text
+from datetime import datetime, timedelta
 
 class HeyGenService:
     def __init__(self, config: HeyGenConfig, db):
@@ -17,9 +18,9 @@ class HeyGenService:
                 text("""
                     SELECT video_id, script, status, video_url, created_at
                     FROM video_logs
-                    WHERE video_id = :video_id AND user_id = :user_id
+                    WHERE video_id = :video_id
                 """),
-                {"video_id": video_id, "user_id": user_idx}
+                {"video_id": video_id}
             )
             row = result.mappings().fetchone()
             if not row:
@@ -50,9 +51,33 @@ class HeyGenService:
             raise HTTPException(status_code=500, detail=f"DB update error: {e}")
         finally:
             session.close()
-            
-
+        
     async def generate_video(self, script: str, user_idx:int) -> str:
+        one_week_ago = datetime.utcnow() - timedelta(days=7)
+        session = self.db.get_session()
+        try:
+            # 1. 최근 7일 이내 동일 스크립트 조회
+            result = session.execute(
+                text("""
+                SELECT video_id
+                FROM video_logs
+                WHERE script = :script
+                  AND created_at >= :threshold
+                ORDER BY created_at DESC
+                LIMIT 1
+                """),
+                {
+                    "script": script,
+                    "threshold": one_week_ago,
+                }
+            )
+            row = result.fetchone()
+            if row:
+                print(f"중복 스크립트 : video_id = {row.video_id}")
+                return row.video_id
+        finally:
+            session.close()
+
         headers = {
             "accept": "application/json",
             "content-type": "application/json",
@@ -75,7 +100,8 @@ class HeyGenService:
                   "type": "text",
                   "voice_id": self.config.voice_id,
                   "input_text": script,
-                  "emotion" : 'Friendly',
+                  "emotion" : 'Friendly', 
+                  "speed": 0.7,
                   "locale": 'ko-KR'
                 },
                 "background": {

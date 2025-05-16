@@ -15,6 +15,7 @@ async def generate_video(
     auth_service = Provide[DI.auth.service],
 ):
     auth_header = request.headers.get("Authorization")
+    
     token = auth_header.replace("Bearer ", "").strip() if auth_header else None
     user_id = jwt_service.get_user_id(token)
     user = auth_service.get_user_by_id(user_id)
@@ -40,7 +41,6 @@ async def heygen_callback(
     event_data = data.get("event_data", {})
     video_id = event_data.get("video_id")
     video_url = event_data.get("url")
-    #video_url = raw_url.split("?")[0] if raw_url else None
 
     if not video_id or not video_url:
         return {"message": "Missing video_id or url"}
