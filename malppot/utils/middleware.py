@@ -4,15 +4,15 @@ import jwt
 from starlette.responses import JSONResponse
 from malppot.di import DI
 
+# DI로 바로 이렇게 가져오는 구조가 맞나?!
 class JWTMiddleware(BaseHTTPMiddleware):
     def __init__(self, app):
         super().__init__(app)
-        self.secret_key = DI.config.jwt.secret_key
-        self.algorithm = DI.config.jwt.algorithm
+        self.secret_key = DI.config.jwt.secret_key()
+        self.algorithm = DI.config.jwt.algorithm()
 
     async def dispatch(self, request: Request, call_next):
         open_paths = ["/auth", "/docs", "/redoc", "/openapi.json"]
-
         if any(request.url.path.startswith(path) for path in open_paths):
             return await call_next(request)
 
