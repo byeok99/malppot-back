@@ -1,20 +1,17 @@
-import enum
-from sqlalchemy import Column, DateTime, Integer, String, Enum
+from sqlalchemy import Column, DateTime, Integer, String, func
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 from malppot.conf.db_base import Base
 
 class User(Base):
     __tablename__ = 'users'
 
     user_idx = Column(Integer, primary_key=True, autoincrement=True)
-    id = Column(String(50), nullable=False, unique=True)
-    password = Column(String(255), nullable=False)
-    username = Column(String(20), nullable=False)
-    email = Column(String(100), nullable=False, unique=True)
-    gender = Column(Enum('w', 'm'))
-    join_date = Column(DateTime(timezone=True), server_default=func.now())
-    role = Column(Enum('user', 'admin'))
+    google_id = Column(String(50), nullable=False, unique=True)
+    email = Column(String(255), nullable=False, unique=True)
+    name = Column(String(100))
+    profile_image_url = Column(String(500))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_login_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     ai_malbeot_logs = relationship("AIMalbeotLog", back_populates="user")
 

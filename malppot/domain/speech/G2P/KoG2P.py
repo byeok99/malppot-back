@@ -5,11 +5,11 @@ def KoG2P(graph):
     g2p.py
     ~~~~~~~~~~
 
-    This script converts Korean graphemes to romanized phones and then to pronunciation.
+    This script converts Korean graphemes to romanized phones and then to speech.
 
         (1) graph2phone: convert Korean graphemes to romanized phones
-        (2) phone2prono: convert romanized phones to pronunciation
-        (3) graph2phone: convert Korean graphemes to pronunciation
+        (2) phone2prono: convert romanized phones to speech
+        (3) graph2phone: convert Korean graphemes to speech
 
     Usage:  $ python g2p.py '스물 여덟째 사람'
             (NB. Please check 'rulebook_path' before usage.)
@@ -289,7 +289,7 @@ def KoG2P(graph):
 
         return prono
 
-    sentenceG2P = runKoG2P(graph, 'malppot/domain/pronunciation/G2P/Dic/rulebook.txt')
+    sentenceG2P = runKoG2P(graph, 'malppot/domain/speech/G2P/Dic/rulebook.txt')
 
     return sentenceG2P
 

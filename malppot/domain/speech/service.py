@@ -1,7 +1,7 @@
 import azure.cognitiveservices.speech as speechsdk
 from malppot.conf.settings import AzureSpeechConfig
-from malppot.domain.pronunciation.G2P.KoG2Padvanced import KoG2Padvanced
-from malppot.domain.pronunciation.feedback.comp import map_jamos_with_scores
+from malppot.domain.speech.G2P.KoG2Padvanced import KoG2Padvanced
+from malppot.domain.speech.feedback.comp import map_jamos_with_scores
 from sqlalchemy import text
 from collections import defaultdict
 import uuid
@@ -15,7 +15,7 @@ import datetime
 from fastapi import HTTPException
 
 
-class PronunciationService:
+class SpeechService:
     def __init__(self, config: AzureSpeechConfig, db):
         if isinstance(config, dict):
             config = AzureSpeechConfig(**config)

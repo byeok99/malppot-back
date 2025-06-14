@@ -1,10 +1,10 @@
 from pydantic import BaseModel
 from typing import List
 
-class PronunciationConvertResponse(BaseModel):
+class ConvertResponse(BaseModel):
     converted_text: str
 
-class PronunciationConvertRequest(BaseModel):
+class ConvertRequest(BaseModel):
     input_text: str
     
 class PronunciationIdResponse(BaseModel):

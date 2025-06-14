@@ -270,7 +270,7 @@ def join_jamos(s, ignore_err=True):
 def KoG2Padvanced(Sentence):
 
     # 알고리즘 선행 규칙 추가
-    from malppot.domain.pronunciation.G2P.KoG2P import KoG2P
+    from malppot.domain.speech.G2P.KoG2P import KoG2P
     import os
     import json
     import re
@@ -285,7 +285,7 @@ def KoG2Padvanced(Sentence):
 
     runMorphemeCase = ["의", "히"]
 
-    nInsertionFile = "malppot/domain/pronunciation/G2P/Dic/nSheetWords.csv"
+    nInsertionFile = "malppot/domain/speech/G2P/Dic/nSheetWords.csv"
     nInsertionFr = open(nInsertionFile, 'r')
     nInsertionContent = nInsertionFr.readlines()
     nInsertionFr.close()
@@ -373,7 +373,7 @@ def KoG2Padvanced(Sentence):
 
     # print(sentenceG2P)
 
-    fileDir = "malppot/domain/pronunciation/G2P/Dic/KoG2PDic.txt"
+    fileDir = "malppot/domain/speech/G2P/Dic/KoG2PDic.txt"
     hangulMo = ["ㅏ", "ㅑ", "ㅓ", "ㅕ", "ㅗ", "ㅛ", "ㅜ", "ㅠ", "ㅡ", "ㅣ", "ㅐ", "ㅘ", "ㅔ", "ㅙ", "ㅚ", "ㅝ", "ㅟ", "ㅞ", "ㅜ", "ㅢ",
                 "ㅒ", "ㅖ"]
 

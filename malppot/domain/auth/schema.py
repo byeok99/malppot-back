@@ -1,17 +1,13 @@
 from pydantic import BaseModel
 
-class LoginRequest(BaseModel):
-    id: str
-    pw: str
-
-class RegisterRequest(BaseModel):
+class UserInfoResponse(BaseModel):
     name: str
     email: str
-    id: str
-    password: str
-    gender: str
+
+class LoginResponse(BaseModel):
+    access_token: str
+    user_info: UserInfoResponse
 
 __all__ = (
-    'LoginRequest',
-    'RegisterRequest',
+    'LoginResponse',
 )

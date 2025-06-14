@@ -1,10 +1,6 @@
 from fastapi import APIRouter, WebSocket, HTTPException
-from fastapi.responses import HTMLResponse
-from typing import List
-from malppot.domain.malbeot.schema import ChatRequest, ChatResponse
 from dependency_injector.wiring import Provide, inject
 from malppot.di import DI
-from pathlib import Path
 import jwt
 
 router = APIRouter()
@@ -41,26 +37,3 @@ async def websocket_endpoint(
         return
 
     await malbeot_service.serve(websocket, user.user_idx)
-
-@router.get("/")
-async def homepage():
-    INDEX_HTML_PATH = Path(__file__).resolve().parent.parent.parent / "static" / "index.html"
-    with open(INDEX_HTML_PATH) as f:
-        html = f.read()
-    return HTMLResponse(html)
-
-@router.post("/chats",  response_model=List[ChatResponse])
-@inject
-async def chats(
-        input: ChatRequest,
-        malbeot_service = Provide(DI.malbeot.service),
-):
-    return await malbeot_service.get_chat_list(input.user_idx)
-
-@router.get("/chat/{session_id}", response_model=List[ChatResponse])
-@inject
-async def chat(
-        session_id: int,
-        malbeot_service = Provide(DI.malbeot.service)
-):
-    return await malbeot_service.get_chat(session_id)

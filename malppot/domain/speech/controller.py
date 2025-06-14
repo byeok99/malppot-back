@@ -1,21 +1,21 @@
 from fastapi import APIRouter, UploadFile, File, Form, Depends, Request, HTTPException
 from starlette.responses import FileResponse
 from dependency_injector.wiring import inject, Provide
-from .schema import PronunciationIdResponse, PronunciationConvertResponse, PronunciationConvertRequest, PronunciationAssessmentResponse
+from .schema import PronunciationIdResponse, ConvertResponse, ConvertRequest, PronunciationAssessmentResponse
 from malppot.di import DI
 from pydub import AudioSegment
 import tempfile, shutil, jwt, os
 
 router = APIRouter()
 
-@router.post("/convert", response_model=PronunciationConvertResponse)
+@router.post("/convert", response_model=ConvertResponse)
 @inject
-async def con_pronunciation(
-    request: PronunciationConvertRequest,
-    pronunciation_service = Depends(Provide[DI.pronunciation.service]),
+async def convert(
+    request: ConvertRequest,
+    pronunciation_service = Provide[DI.pronunciation.service],
 ):
     result = pronunciation_service.convert_pronunciation(request.input_text)
-    return PronunciationConvertResponse(converted_text=result)
+    return ConvertResponse(converted_text=result)
 
 
 @router.post("/evaluate")

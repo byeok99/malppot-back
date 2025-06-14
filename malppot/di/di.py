@@ -3,7 +3,7 @@ from malppot.di.config import ConfigContainer
 from malppot.conf.db import DatabaseSession
 from malppot.di.auth import _AuthContainer
 from malppot.di.malbeot import _MalbeotContainer
-from malppot.di.pronunciation import _PronunciationContainer
+from malppot.di.speech import _SpeechContainer
 from malppot.di.heygen import _HeygenContainer
 from malppot.utils.jwt import JWTService
 
@@ -22,6 +22,7 @@ class DI(containers.DeclarativeContainer):
 
     auth = providers.Container(
         _AuthContainer,
+        config=config.google,
         db=db,
     )
 
@@ -31,8 +32,8 @@ class DI(containers.DeclarativeContainer):
         db=db,
     )
     
-    pronunciation = providers.Container(
-        _PronunciationContainer,
+    speech = providers.Container(
+        _SpeechContainer,
         config=config.azure_speech,
         db=db,
     )

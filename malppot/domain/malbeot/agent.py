@@ -4,9 +4,7 @@ import websockets
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, AsyncIterator, Any, Callable, Coroutine
 from langchain_core._api import beta
-from pydantic import BaseModel, Field
-
-# DEFAULT_URL = "wss://api.openai.com/v1/realtime"
+from pydantic import BaseModel
 
 EVENTS_TO_IGNORE = {
     "response.function_call_arguments.delta",
@@ -115,7 +113,6 @@ class OpenAIVoiceReactAgent(BaseModel):
             async for stream_key, data_raw in amerge(
                 input_mic=input_stream,
                 output_speaker=model_receive_stream,
-                # tool_outputs=tool_executor.output_iterator(),
             ):
                 try:
                     data = (
@@ -132,17 +129,14 @@ class OpenAIVoiceReactAgent(BaseModel):
                     if t == "response.audio.delta":
                         await send_output_chunk(json.dumps(data))
                     elif t == "response.audio_buffer.speech_started":
-                        print("interrupt")
                         send_output_chunk(json.dumps(data))
                     elif t == "error":
                         print("error:", data)
                     elif t == "conversation.item.input_audio_transcription.completed":
-                        print("user:", data["transcript"])
                         data["speaker"] = "user"
                         await send_output_chunk(json.dumps(data))
                         yield {"user": data["transcript"]}
                     elif t == "response.audio_transcript.done":
-                        print("model:", data["transcript"])
                         data["speaker"] = "model"
                         await send_output_chunk(json.dumps(data))
                         yield {"model": data["transcript"]}

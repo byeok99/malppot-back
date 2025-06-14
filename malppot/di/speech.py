@@ -1,14 +1,14 @@
 from dependency_injector import containers, providers
 from malppot.conf.db import DatabaseSession
-from malppot.domain.pronunciation.service import PronunciationService
+from malppot.domain.speech.service import SpeechService
 
 
-class _PronunciationContainer(containers.DeclarativeContainer):
+class _SpeechContainer(containers.DeclarativeContainer):
     db = providers.Dependency(instance_of=DatabaseSession)
     config = providers.Dependency()
 
     service = providers.Factory(
-        PronunciationService,
+        SpeechService,
         db=db.provided,
         config=config.provided,
     )

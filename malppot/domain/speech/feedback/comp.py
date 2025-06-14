@@ -24,7 +24,7 @@ CODA_LIST = (
 )
 
 ALLOWED_JAMOS = set(ONSET_LIST + VOWEL_LIST + CODA_LIST)
-KO2PIC_CSV_PATH = 'malppot/domain/pronunciation/feedback/ko2pic.csv'
+KO2PIC_CSV_PATH = 'malppot/domain/speech/feedback/ko2pic.csv'
 def load_viseme_table():
     df = pd.read_csv(KO2PIC_CSV_PATH)
     viseme_dict = dict(zip(df['korean'], df['picture_path_1']))

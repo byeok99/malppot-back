@@ -31,18 +31,26 @@ class HeyGenConfig(BaseSettings):
     voice_id: str
     callback_url: str
 
+class GoogleConfig(BaseSettings):
+    client_id: str
+    client_secret: str
+    redirect_uri: str
+
 class Config(BaseSettings):
     db: DBConfig
     jwt: JWTConfig
     openai: OpenAIConfig
     azure_speech: AzureSpeechConfig
     heygen: HeyGenConfig
+    google: GoogleConfig
+
 
 __all__ = (
     'DBConfig',
     'JWTConfig',
     'OpenAIConfig',
-    'AzureSpeechConfig'
+    'AzureSpeechConfig',
+    'GoogleConfig',
     'HeyGenConfig',
     'Config',
 )

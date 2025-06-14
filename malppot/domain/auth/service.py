@@ -1,18 +1,23 @@
 import datetime
 from typing import Optional
 from passlib.context import CryptContext
+
+from malppot.conf.settings import GoogleConfig
 from malppot.domain.auth.model import User
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class AuthService:
-    def __init__(self, db):
+    def __init__(self, config, db):
+        if isinstance(config, dict):
+            config = GoogleConfig(**config)
+        self.config = config
         self.db = db
 
     def get_user_by_id(self, _id: str) -> Optional[User | int]:
         session = self.db.get_session()
-        user = session.query(User).filter(User.id == _id).first()
-        return user if user else 1
+        user = session.query(User).filter(User.google_id == _id).first()
+        return user
 
     def verify_password(self, origin_password:str, hashed_password:str) -> bool:
         return pwd_context.verify(origin_password, hashed_password)
@@ -20,24 +25,22 @@ class AuthService:
     def create_hashed_password(self, password:str) -> str:
         return pwd_context.hash(password)
 
-    def register_user(self, name, email, id, password, gender):
+    def get_google_auth_info(self) -> dict:
+        return self.config
+
+    def register_user(self, google_id, email, name):
         session = self.db.get_session()
-        if session.query(User).filter(User.id == id).first():
-            raise ValueError("User id is already exist")
+        if session.query(User).filter(User.google_id == google_id).first():
+            raise ValueError("User with id {} already exists".format(google_id))
         if session.query(User).filter(User.email == email).first():
             raise ValueError("User email is already exist")
 
-        hashed_password = self.create_hashed_password(password)
         new_user = User(
-            id=id,
-            username=name,
+            google_id=google_id,
             email=email,
-            password=hashed_password,
-            gender=gender,
-            join_date=datetime.datetime.now(datetime.UTC)
+            name=name,
         )
         session.add(new_user)
         session.commit()
         session.refresh(new_user)
-
         return new_user
