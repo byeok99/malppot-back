@@ -1,7 +1,7 @@
 import azure.cognitiveservices.speech as speechsdk
 from malppot.conf.settings import AzureSpeechConfig
 from malppot.domain.speech.G2P.KoG2Padvanced import KoG2Padvanced
-from malppot.domain.speech.feedback.comp import map_jamos_with_scores
+from malppot.domain.speech.feedback.comp import map_jamos_with_scores, prepare_interpolation_jobs_from_scores
 from sqlalchemy import text
 from collections import defaultdict
 import uuid
@@ -13,6 +13,9 @@ from azure.cognitiveservices.speech import (
 import json
 import datetime
 from fastapi import HTTPException
+import os
+import replicate
+import requests
 
 
 class SpeechService:
@@ -21,7 +24,43 @@ class SpeechService:
             config = AzureSpeechConfig(**config)
         self.config = config
         self.db = db
+        
+    def interpolate_and_save(self, frame1_url: str, frame2_url: str, output_dir="static", output_filename="output.mp4"):
+        # Replicate API 토큰 코드 상에서 직접 설정
+        os.environ["REPLICATE_API_TOKEN"] = self.config.replicate_key;
 
+        # 환경변수에서 자동 인식
+        client = replicate.Client()
+
+        # 입력 구성
+        input_data = {
+            "frame1": frame1_url,
+            "frame2": frame2_url,
+            "times_to_interpolate": 7
+        }
+        try:
+            output_url = client.run(
+                "google-research/frame-interpolation:4f88a16a13673a8b589c18866e540556170a5bcb2ccdc12de556e800e9456d3d",
+                input=input_data
+            )
+        except Exception as e:
+            print(f"Replicate 오류: {e}")
+            return None
+
+        # static 디렉토리 만들기
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, output_filename)
+
+        res = requests.get(output_url)
+        if res.status_code == 200:
+            with open(output_path, "wb") as f:
+                f.write(res.content)
+            print(f"저장 완료: {output_path}")
+            return output_path
+        else:
+            print(f"다운로드 실패: {res.status_code}")
+            return None
+    
     def evaluate_pronunciation(self, reference_text: str, audio_path: str):
         speech_config = speechsdk.SpeechConfig(
             subscription=self.config.azure_key,
@@ -75,20 +114,38 @@ class SpeechService:
             print(f"파싱 에러: {e}")
             phoneme_scores = []
 
+        # feedback = map_jamos_with_scores(word_phoneme_scores)
         feedback = map_jamos_with_scores(word_phoneme_scores)
+
+        # 영상 생성 job 준비
+        jobs = prepare_interpolation_jobs_from_scores(feedback)
+
+        # 생성된 영상 경로 저장
+        video_results = []
+        for job in jobs:
+            # 이 부분에서 이미 있는 데이터가 있으면 self.interpolate_and_save 호출 안 하게 하고 output_path 이름만
+            output_path = self.interpolate_and_save(
+                frame1_url=job["frame1"],
+                frame2_url=job["frame2"],
+                output_filename=job["output"]
+            )
+            if output_path:
+                video_results.append(output_path)
 
         # 평균 점수 계산 추가
         for f in feedback:
             scores = [s["score"] for s in f["scores"] if "score" in s]
             f["average_score"] = round(sum(scores) / len(scores), 2) if scores else 0.0
 
+        # 최종 반환 구조
         return {
             "reference_text": reference_text,
             "accuracy_score": assessment_result.accuracy_score,
             "fluency_score": assessment_result.fluency_score,
             "completeness_score": assessment_result.completeness_score,
             "phoneme_scores": phoneme_scores,
-            "feedback": feedback
+            "feedback": feedback,
+            "videos": video_results
         }
 
     def save_pronunciation_log(self, user_id: int, result: dict) -> str:

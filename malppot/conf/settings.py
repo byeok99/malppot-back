@@ -23,6 +23,7 @@ class OpenAIConfig(BaseSettings):
 class AzureSpeechConfig(BaseSettings):
     azure_key: str
     azure_region: str
+    replicate_key: str
     
 class HeyGenConfig(BaseSettings):
     api_key: str

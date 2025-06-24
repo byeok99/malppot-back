@@ -50,6 +50,57 @@ def tag_jamo_roles(hangul: str) -> list[dict]:
 
     return result
 
+def prepare_interpolation_jobs_from_scores(mapped_data):
+    jobs = []
+
+    for word_entry in mapped_data:
+        word = word_entry["word"]
+        scores = word_entry.get("scores", [])
+
+        if not scores:
+            continue
+
+        # 글자 단위로 초중종 분할
+        jamo_sets = []
+        current_set = []
+        for s in scores:
+            current_set.append(s)
+            if s["role"] == "종성" or len(current_set) == 2:  # 종성이 없을 수도 있음
+                jamo_sets.append(current_set)
+                current_set = []
+
+        for idx, triplet in enumerate(jamo_sets):
+            if len(triplet) < 2:
+                continue
+
+            # 자모 경로 준비
+            get_path = lambda j: VISEME_TABLE.get(j["jamo"], "")
+            onset = next((j for j in triplet if j["role"] == "초성"), None)
+            vowel = next((j for j in triplet if j["role"] == "중성"), None)
+            coda  = next((j for j in triplet if j["role"] == "종성"), None)
+
+            if onset and vowel:
+                onset_path = get_path(onset)
+                vowel_path = get_path(vowel)
+                if onset_path and vowel_path:
+                    jobs.append({
+                        "frame1": onset_path,
+                        "frame2": vowel_path,
+                        "output": f"videos/{word}_{idx}_초성중성.mp4"
+                    })
+
+            if vowel and coda:
+                vowel_path = get_path(vowel)
+                coda_path = get_path(coda)
+                if vowel_path and coda_path:
+                    jobs.append({
+                        "frame1": vowel_path,
+                        "frame2": coda_path,
+                        "output": f"videos/{word}_{idx}_중성종성.mp4"
+                    })
+
+    return jobs
+
 def map_jamos_with_scores(word_score_list: list) -> list:
     result = []
     for word, score_list, errtype in word_score_list:
@@ -64,18 +115,12 @@ def map_jamos_with_scores(word_score_list: list) -> list:
             role = jr["role"]
 
             if role == "초성" and jamo == "ㅇ":
-                mapped_scores.append({"jamo": jamo, "score": 100, "viseme": ""})
+                mapped_scores.append({"jamo": jamo, "role": role, "score": 100})
                 continue
 
             if score_idx < len(score_list):
                 score = score_list[score_idx]
-                entry = {"jamo": jamo, "score": score}
-                if score <= 70:
-                    image = VISEME_TABLE.get(jamo)
-                    if image:
-                        entry["viseme"] = f"{image}" 
-                else:
-                    entry["viseme"] = ""
+                entry = {"jamo": jamo, "role": role, "score": score}
                 mapped_scores.append(entry)
                 score_idx += 1
 
@@ -99,5 +144,4 @@ def map_jamos_with_scores(word_score_list: list) -> list:
             "errtype": errtype,
             "pronspec": ""
         })
-
     return result
