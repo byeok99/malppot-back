@@ -1,52 +1,61 @@
-from http.client import HTTPException
-from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Request, HTTPException, Response
-from malppot.domain.auth.schema import LoginResponse
-from malppot.di import DI
 import httpx
+from fastapi import APIRouter, Request, Response, Depends
+
+from malppot.common.di_providers import (
+    get_auth_service_from_di,
+    get_jwt_service_from_di,
+    get_speech_service_from_di
+)
+from malppot.common.errors import (
+    MissingAuthCodeException,
+    FailedGoogleAccessTokenException,
+    FailedGoogleUserInfoException,
+    InvalidCredentialsException,
+    InvalidTokenException
+)
+from malppot.domain.auth.schema import LoginResponse
 
 router = APIRouter()
 
+
 @router.post("/login", response_model=LoginResponse)
-@inject
 async def login(
         request: Request,
         response: Response,
-        auth_service=Provide[DI.auth.service],  # : AuthService..
-        jwt_service=Provide[DI.jwt_service],
+        auth_service=Depends(get_auth_service_from_di),
+        jwt_service=Depends(get_jwt_service_from_di),
+        speech_service=Depends(get_speech_service_from_di)
 ) -> dict[str, str]:
     info = auth_service.get_google_auth_info()
 
-    GOOGLE_CLIENT_ID = info.client_id
-    GOOGLE_CLIENT_SECRET = info.client_secret
-    GOOGLE_REDIRECT_URI = info.redirect_uri
+    google_client_id = info.client_id
+    google_client_secret = info.client_secret
+    google_client_uri = info.redirect_uri
 
     data = await request.json()
     code = data.get("code")
 
     if not code:
-        raise HTTPException(status_code=400, detail="Missing authorization code")
+        raise MissingAuthCodeException()
 
-    # 1. code로 access_token 받기
     async with httpx.AsyncClient() as client:
         token_res = await client.post(
             "https://oauth2.googleapis.com/token",
             data={
                 "code": code,
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "redirect_uri": GOOGLE_REDIRECT_URI,
+                "client_id": google_client_id,
+                "client_secret": google_client_secret,
+                "redirect_uri": google_client_uri,
                 "grant_type": "authorization_code",
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
 
     if token_res.status_code != 200:
-        raise HTTPException(status_code=400, detail="Failed to get access token from Google")
+        raise FailedGoogleAccessTokenException()
 
     access_token_from_google = token_res.json().get("access_token")
 
-    # 2. access_token으로 사용자 정보 조회
     async with httpx.AsyncClient() as client:
         user_res = await client.get(
             "https://www.googleapis.com/oauth2/v2/userinfo",
@@ -54,19 +63,18 @@ async def login(
         )
 
     if user_res.status_code != 200:
-        raise HTTPException(status_code=400, detail="Failed to get user info from Google")
+        raise FailedGoogleUserInfoException()
 
     user_info = user_res.json()
     google_id = user_info.get("id")
     email = user_info.get("email")
     name = user_info.get("name")
+    profile_image_url = user_info.get("picture")
 
-    # 3. 사용자 DB 확인 및 등록/갱신
     user = auth_service.get_user_by_id(google_id)
     if not user:
-        user = auth_service.register_user(google_id, email, name)
+        user = auth_service.register_user(google_id, email, name, profile_image_url)
 
-    # 4. 내부 access, refresh 토큰 생성
     access_token = jwt_service.create_access_token(user.google_id)
     refresh_token = jwt_service.create_refresh_token(user.google_id)
 
@@ -74,39 +82,42 @@ async def login(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,  # HTTPS 환경이면 True
+        secure=False,
         samesite="Strict"
     )
+
+    speech_service.update_user_practice_summary(user.user_idx)
 
     return {
         "access_token": access_token,
         "user_info": {
             "name": user.name,
-            "email": user.email
+            "email": user.email,
+            "profile_image_url": user.profile_image_url
         }
     }
+
 
 @router.post("/logout")
 async def logout(response: Response):
     response.delete_cookie("refresh_token")
     return {"message": "Successfully logged out"}
 
-# 만료시 다른 곳으로 보내야댐..
+
 @router.post("/refresh")
-@inject
 async def refresh(
-    request: Request,
-    jwt_service=Provide[DI.jwt_service],
+        request: Request,
+        jwt_service=Depends(get_jwt_service_from_di),
 ):
     refresh_token = request.cookies.get("refresh_token")
 
     if not refresh_token:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise InvalidCredentialsException(detail="Refresh token not found in cookies.")
 
     payload = jwt_service.verify_token(refresh_token)
 
     if not payload:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise InvalidTokenException(detail="Invalid or expired refresh token.")
 
     new_access_token = jwt_service.create_access_token(payload["sub"])
 

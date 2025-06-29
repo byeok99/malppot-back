@@ -1,29 +1,30 @@
 db:
-  host: ""
-  port:
-  user: ""
-  password: ""
-  name: ""
-  driver: ""
+    host: ""
+    port:
+    user: ""
+    password: ""
+    name: ""
+    driver: ""
 
 jwt:
-  secret_key: ""
-  access_token_expire_minutes:
-  refresh_token_expire_days:
-  algorithm: ""
+    secret_key: ""
+    access_token_expire_minutes:
+    refresh_token_expire_days:
+    algorithm: ""
 
 openai:
-  api_key: ""
-  model: ""
-  url: ""
-  instruction: ""
+    api_key: ""
+    realtime_model: ""
+    text_model: ""
+    url: ""
 
 azure_speech:
-  azure_key: ""
-  azure_region: ""
+    azure_key: ""
+    azure_region: ""
+    replicate_key: ""
 
 heygen:
-  api_key: ""
-  base_url: "https://api.heygen.com/v2"
-  avatar_id: ""
-  voice_id: ""
+    api_key: ""
+    base_url: ""
+    avatar_id: ""
+    voice_id: ""

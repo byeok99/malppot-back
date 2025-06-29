@@ -4,8 +4,8 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from malppot.conf.settings import DBConfig
 
 
-class DatabaseSession :
-    def __init__(self, config:DBConfig):
+class DatabaseSession:
+    def __init__(self, config: DBConfig):
         if isinstance(config, dict):
             config = DBConfig(**config)
 

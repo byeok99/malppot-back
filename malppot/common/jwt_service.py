@@ -24,7 +24,7 @@ class JWTService:
     def create_refresh_token(self, user_id:int) -> str:
         payload = {
             "sub": user_id,
-            "exp": datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=self.refresh_token_expire_days),
+            "exp": datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=self.refresh_token_expire_days),
             "iat": datetime.datetime.now(datetime.UTC),
         }
 
@@ -44,16 +44,8 @@ class JWTService:
         except jwt.InvalidTokenError:
             return None
 
-    def get_items(self, token):
-        return jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
-
-    def get_user_id(self, token: str) -> str | None:
-        try:
-            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+    def get_user_id(self, token: str) -> int | None:
+        payload = self.verify_token(token)
+        if payload:
             return payload.get("sub")
-        except jwt.ExpiredSignatureError:
-            print("Expired token")
-            return None
-        except jwt.InvalidTokenError:
-            print("Invalid token")
-            return None
+        return None

@@ -1,26 +1,65 @@
-import sys
-import uvicorn
-from pathlib import Path
-from malppot import create_app
-from fastapi.staticfiles import StaticFiles
-from malppot.utils.middleware import JWTMiddleware
+from dependency_injector import wiring
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.append(str(PROJECT_ROOT))
+from malppot.common.errors import CustomException
+from malppot.di import DI
 
-app = create_app()
+app = FastAPI()
+container = DI()
 
-app.add_middleware(JWTMiddleware)
+import malppot.domain.auth.controller
+import malppot.common.dependencies
+import malppot.domain.malbeot.controller
+import malppot.domain.speech.controller
+import malppot.domain.heygen.controller
+import malppot.domain.mypage.controller
+import malppot.domain.game.controller
+
+wiring.wire(
+    container=container,
+    modules=[
+        malppot.common.dependencies,
+        malppot.domain.auth.controller,
+        malppot.domain.malbeot.controller,
+        malppot.domain.speech.controller,
+        malppot.domain.heygen.controller,
+        malppot.domain.mypage.controller,
+        malppot.domain.game.controller,
+    ]
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5174"],
     allow_credentials=True,
-    allow_methods=["*"],                      # 모든 HTTP 메서드 허용
-    allow_headers=["*"],                      # 모든 헤더 허용
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000)
 
-# uvicorn malppot.main:app --host 0.0.0.0 --port 8000 --reload
+# app.add_middleware(JWTMiddleware)
+
+@app.exception_handler(CustomException)
+async def custom_exception_handler(request: Request, exc: CustomException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"message": exc.detail, "code": exc.status_code},
+    )
+
+
+# 라우터 연결 (이전 제안과 동일)
+from malppot.domain.auth.controller import router as auth_router
+from malppot.domain.malbeot.controller import router as malbeot_router
+from malppot.domain.speech.controller import router as speech_router
+from malppot.domain.heygen.controller import router as heygen_router
+from malppot.domain.mypage.controller import router as mypage_router
+from malppot.domain.game.controller import router as game_router
+
+app.include_router(auth_router, prefix="/auth", tags=["auth"])
+app.include_router(malbeot_router, prefix="/malbeot", tags=["malbeot"])
+app.include_router(speech_router, prefix="/speech", tags=["speech"])
+app.include_router(heygen_router, prefix="/heygen", tags=["heygen"])
+app.include_router(mypage_router, prefix="/mypage", tags=["mypage"])
+app.include_router(game_router, prefix="/game", tags=["game"])

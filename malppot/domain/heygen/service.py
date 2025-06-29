@@ -1,8 +1,13 @@
-import httpx
-from malppot.conf.settings import HeyGenConfig
-from fastapi import HTTPException
-from sqlalchemy import text
 from datetime import datetime, timedelta
+from typing import Optional
+
+import httpx
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+from malppot.conf.settings import HeyGenConfig
+from malppot.domain.models import VideoLog, VideoLogStatus
+
 
 class HeyGenService:
     def __init__(self, config: HeyGenConfig, db):
@@ -11,70 +16,52 @@ class HeyGenService:
         self.config = config
         self.db = db
 
-    def get_video(self, video_id: str, user_idx:int):
-        session = self.db.get_session()
+    def get_video(self, video_id: str, user_idx: int) -> dict:
+        session: Session = self.db.get_session()
         try:
-            result = session.execute(
-                text("""
-                    SELECT video_id, script, status, video_url, created_at
-                    FROM video_logs
-                    WHERE video_id = :video_id
-                """),
-                {"video_id": video_id}
-            )
-            row = result.mappings().fetchone()
-            if not row:
+            video_log = session.query(VideoLog).filter(
+                VideoLog.video_id == video_id,
+            ).first()
+
+            if not video_log:
                 raise HTTPException(status_code=404, detail="해당 영상이 없거나 권한이 없습니다.")
-            return dict(row)
+            return {
+                "video_id": video_log.video_id,
+                "script": video_log.script,
+                "status": video_log.status.value,
+                "video_url": video_log.video_url,
+                "created_at": video_log.created_at
+            }
         finally:
-            session.close()  
-    
+            session.close()
+
     def update_video(self, video_id: str, video_url: str):
         session = self.db.get_session()
         try:
-            session.execute(
-                text("""
-                    UPDATE video_logs
-                    SET video_url = :video_url,
-                        status = :status
-                    WHERE video_id = :video_id
-                """),
-                {
-                    "video_id": video_id,
-                    "video_url": video_url,
-                    "status": "done"
-                }
-            )
+            video_log = session.query(VideoLog).filter(VideoLog.video_id == video_id).first()
+            if not video_log:
+                raise HTTPException(status_code=404, detail="업데이트할 영상을 찾을 수 없습니다.")
+
+            video_log.video_url = video_url
+            video_log.status = VideoLogStatus.DONE
             session.commit()
         except Exception as e:
             session.rollback()
             raise HTTPException(status_code=500, detail=f"DB update error: {e}")
         finally:
             session.close()
-        
-    async def generate_video(self, script: str, user_idx:int) -> str:
+
+    async def generate_video(self, script: str):
+        session: Session = self.db.get_session()
         one_week_ago = datetime.utcnow() - timedelta(days=7)
-        session = self.db.get_session()
         try:
-            # 1. 최근 7일 이내 동일 스크립트 조회
-            result = session.execute(
-                text("""
-                SELECT video_id
-                FROM video_logs
-                WHERE script = :script
-                  AND created_at >= :threshold
-                ORDER BY created_at DESC
-                LIMIT 1
-                """),
-                {
-                    "script": script,
-                    "threshold": one_week_ago,
-                }
-            )
-            row = result.fetchone()
-            if row:
-                print(f"중복 스크립트 : video_id = {row.video_id}")
-                return row.video_id
+            existing_video = session.query(VideoLog).filter(
+                VideoLog.script == script,
+                VideoLog.created_at >= one_week_ago,
+            ).order_by(VideoLog.created_at.desc()).first()
+
+            if existing_video:
+                return
         finally:
             session.close()
 
@@ -87,59 +74,66 @@ class HeyGenService:
         payload = {
             "caption": False,
             "dimension": {
-              "width": 1280,
-              "height": 720
+                "width": 1280,
+                "height": 720
             },
             "video_inputs": [
-              {
-                "character": {
-                  "type": "avatar",
-                  "avatar_id": self.config.avatar_id
-                },
-                "voice": {
-                  "type": "text",
-                  "voice_id": self.config.voice_id,
-                  "input_text": script,
-                  "emotion" : 'Friendly', 
-                  "speed": 0.7,
-                  "locale": 'ko-KR'
-                },
-                "background": {
-                  "type": "color",
-                  "value": "#ffffff"
+                {
+                    "character": {
+                        "type": "avatar",
+                        "avatar_id": self.config.avatar_id
+                    },
+                    "voice": {
+                        "type": "text",
+                        "voice_id": self.config.voice_id,
+                        "input_text": script,
+                        "emotion": 'Friendly',
+                        "speed": 0.7,
+                        "locale": 'ko-KR'
+                    },
+                    "background": {
+                        "type": "color",
+                        "value": "#ffffff"
+                    }
                 }
-              }
             ],
             "callback_url": self.config.callback_url
         }
+
         async with httpx.AsyncClient() as client:
-                    # 1. 영상 생성 요청
-                    response = await client.post(
-                        f"{self.config.base_url}/video/generate",
-                        json=payload,
-                        headers=headers
-                    )
-                    response.raise_for_status()
-                    response_data = response.json()
-                    video_id = response_data["data"]["video_id"]
-                    print("📦 생성된 video_id:", video_id)
+            response = await client.post(
+                f"{self.config.base_url}/video/generate",
+                json=payload,
+                headers=headers
+            )
+            response.raise_for_status()
+            response_data = response.json()
+            video_id = response_data["data"]["video_id"]
 
-                    session = self.db.get_session()
-                    try:
-                        session.execute(
-                            text("""
-                            INSERT INTO video_logs (video_id, user_id, script, status)
-                            VALUES (:video_id, :user_id, :script, :status)
-                            """),
-                            {
-                                "video_id": video_id,
-                                "user_id": user_idx,
-                                "script": script,
-                                "status": "pending",
-                            }
-                        )
-                        session.commit()
-                    finally:
-                        session.close()
+            session = self.db.get_session()
+            try:
+                new_video_log = VideoLog(
+                    video_id=video_id,
+                    script=script,
+                    status=VideoLogStatus.PENDING,
+                )
+                session.add(new_video_log)
+                session.commit()
+            finally:
+                session.close()
 
-                    return video_id
+    async def get_video_url_by_script(self, script: str) -> Optional[str]:
+        session: Session = self.db.get_session()
+        one_week_ago = datetime.utcnow() - timedelta(days=7)  # 일주일 전 시간 계산
+        try:
+            video_log = session.query(VideoLog).filter(
+                VideoLog.script == script,
+                VideoLog.status == VideoLogStatus.DONE,
+                VideoLog.created_at >= one_week_ago
+            ).order_by(VideoLog.created_at.desc()).first()
+
+            if video_log:
+                return video_log.video_url
+            return None
+        finally:
+            session.close()

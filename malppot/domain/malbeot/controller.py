@@ -1,39 +1,71 @@
-from fastapi import APIRouter, WebSocket, HTTPException
-from dependency_injector.wiring import Provide, inject
-from malppot.di import DI
+import logging
+
 import jwt
+from fastapi import APIRouter, WebSocket, HTTPException, Depends, status, Query
+
+from malppot.common.di_providers import (
+    get_malbeot_service_from_di,
+    get_jwt_service_from_di,
+    get_auth_service_from_di
+)
+from malppot.common.errors import UserNotFoundException
+from malppot.domain.models import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
+async def _close_websocket_with_error(websocket: WebSocket, reason: str, code: int = status.WS_1008_POLICY_VIOLATION):
+    logger.warning(f"Closing WebSocket connection: {reason}")
+    await websocket.close(code=code, reason=reason)
+
+
 @router.websocket("/ws")
-@inject
-async def websocket_endpoint(
+async def chat_with_malbeot(
         websocket: WebSocket,
-        malbeot_service = Provide(DI.malbeot.service),
-        jwt_service = Provide(DI.jwt_service),
-        auth_service = Provide(DI.auth.service),
+        malbeot_service=Depends(get_malbeot_service_from_di),
+        auth_service=Depends(get_auth_service_from_di),
+        jwt_service=Depends(get_jwt_service_from_di),
+        access_token: str = Query(...),
+        mode: str = Query(...),
 ):
-    token = websocket.query_params.get("access_token")
-    if not token:
-        print("No access token")
-        await websocket.close(code=1008)
+    await websocket.accept()
+    
+    if not access_token:
+        await _close_websocket_with_error(websocket, "No access token provided.")
         return
+
+    user_id = None
     try:
-        user_id = jwt_service.get_user_id(token)
+        user_id = jwt_service.get_user_id(access_token)
         if not user_id:
-            print("Invalid Token")
-            await websocket.close(code=1008)  # Invalid Token
+            await _close_websocket_with_error(websocket, "Invalid Token.")
             return
     except jwt.ExpiredSignatureError:
-        print("Token has expired")
-        await websocket.close(code=1008)
+        await _close_websocket_with_error(websocket, "Token has expired.")
+        return
+    except Exception as e:
+        logger.exception(f"Error parsing JWT token: {e}")
+        await _close_websocket_with_error(websocket, "Token processing error.")
         return
 
     try:
-        user = auth_service.get_user_by_id(user_id)
+        user: User = auth_service.get_user_by_id(user_id)
+        if user is None:
+            await _close_websocket_with_error(websocket, "User not found.")
+            return
+    except UserNotFoundException as e:
+        logger.error(f"User not found via AuthService: {e.detail}")
+        await _close_websocket_with_error(websocket, f"User lookup failed: {e.detail}")
+        return
     except HTTPException as e:
-        print(f"User not found: {e.detail}")
-        await websocket.close(code=1008)
+        logger.error(f"User lookup failed (HTTPException): {e.detail}")
+        await _close_websocket_with_error(websocket, f"User lookup failed: {e.detail}")
+        return
+    except Exception as e:
+        logger.exception(f"Unexpected error during user lookup for WebSocket: {e}")
+        await _close_websocket_with_error(websocket, "Internal server error during user lookup.")
         return
 
-    await malbeot_service.serve(websocket, user.user_idx)
+    await malbeot_service.serve(websocket, mode)

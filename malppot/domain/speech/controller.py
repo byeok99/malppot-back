@@ -1,92 +1,87 @@
-from fastapi import APIRouter, UploadFile, File, Form, Depends, Request, HTTPException
-from starlette.responses import FileResponse
-from dependency_injector.wiring import inject, Provide
-from .schema import PronunciationIdResponse, ConvertResponse, ConvertRequest, PronunciationAssessmentResponse
-from malppot.di import DI
-from pydub import AudioSegment
-import tempfile, shutil, jwt, os
+import logging
+import os
+
+from fastapi import APIRouter, Depends, UploadFile, File, Form, status
+
+from malppot.common.dependencies import get_current_user
+from malppot.common.di_providers import get_speech_service_from_di
+from malppot.common.errors import (
+    SpeechEvaluationException,
+    SpeechAudioProcessingException,
+    CustomException,
+    UserNotFoundException
+)
+from malppot.domain.models import User
+from malppot.domain.speech.schema import ConvertResponse, ConvertRequest
+from malppot.domain.speech.service import SpeechService
+from malppot.utils.audio_utils import convert_upload_to_wav
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
 @router.post("/convert", response_model=ConvertResponse)
-@inject
 async def convert(
-    request: ConvertRequest,
-    pronunciation_service = Provide[DI.pronunciation.service],
+        request_data: ConvertRequest,
+        speech_service: SpeechService = Depends(get_speech_service_from_di),
 ):
-    result = pronunciation_service.convert_pronunciation(request.input_text)
-    return ConvertResponse(converted_text=result)
+    try:
+        result = await speech_service.convert(request_data.input_text)
+        return ConvertResponse(converted_text=result['converted_text'])
+    except Exception as e:
+        logger.exception("An unexpected error occurred during text conversion.")
+        raise CustomException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred during text conversion."
+        )
 
 
 @router.post("/evaluate")
-@inject
-async def evaluate_pronunciation(
-    request: Request,
-    reference_text: str = Form(...),
-    audio: UploadFile = File(...),
-    pronunciation_service = Provide[DI.pronunciation.service],
-    jwt_service = Provide[DI.jwt_service],
-    auth_service = Provide[DI.auth.service]
+async def evaluate(
+        reference_text: str = Form(...),
+        original_text: str = Form(...),
+        audio: UploadFile = File(...),
+        speech_service: SpeechService = Depends(get_speech_service_from_di),
+        user: User = Depends(get_current_user)
 ):
-    auth_header = request.headers.get("Authorization")
-    token = auth_header.replace("Bearer ", "").strip() if auth_header else None
-    user_id = jwt_service.get_user_id(token)
-    user = auth_service.get_user_by_id(user_id)
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_webm:
-        shutil.copyfileobj(audio.file, temp_webm)
-        webm_path = temp_webm.name
-
-    wav_path = webm_path.replace(".webm", ".wav")
+    wav_path = None
 
     try:
-        sound = AudioSegment.from_file(webm_path, format="webm")
-        sound = sound.set_channels(1).set_frame_rate(16000)
-        sound.export(wav_path, format="wav")
+        logger.info(f"Received evaluation request for reference: {reference_text[:50]}...")
+
+        if not audio.filename:
+            raise SpeechAudioProcessingException(detail="Audio file name is missing.")
+        if not audio.file:
+            raise SpeechAudioProcessingException(detail="Audio file content is missing.")
+
+        wav_path = await convert_upload_to_wav(audio)
+        result = await speech_service.evaluate(original_text, reference_text, wav_path)
+        session_id = speech_service.save_to_practice_tables(user.user_idx, original_text, result)
+        speech_service.update_user_practice_summary(user.user_idx)
+
+        return {
+            "session_id": session_id,
+            "reference_text": original_text,
+            "scores": result["accuracy_score"],
+            "feedback": result["word_feedbacks"],
+        }
+    except SpeechAudioProcessingException as e:
+        logger.error(f"Audio processing error during evaluate: {e.detail}")
+        raise e
+    except SpeechEvaluationException as e:
+        logger.error(f"Speech evaluation failed by service: {e.detail}")
+        raise e
+    except UserNotFoundException as e:
+        logger.error(f"User not found during evaluation: {e.detail}")
+        raise e
     except Exception as e:
-        print(f"Audio conversion failed: {e}")
-        raise HTTPException(status_code=500, detail="Audio conversion failed")
-
-    pronunciation_result = pronunciation_service.evaluate_pronunciation(reference_text, wav_path)
-    pronunciation_service.save_pronunciation_log(user_id=user.user_idx, result=pronunciation_result)
-
-    os.remove(webm_path)
-    os.remove(wav_path)
-
-    return pronunciation_result
-
-@router.get("/evaluate/result/{pronunciation_id}")
-@inject
-async def get_pronunciation_result_by_id(
-    request: Request,
-    pronunciation_id: str,
-    pronunciation_service = Depends(Provide[DI.pronunciation.service]),
-    jwt_service = Provide[DI.jwt_service],
-    auth_service = Provide[DI.auth.service]
-):
-    # 인증
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authorization header missing")
-    token = auth_header.replace("Bearer ", "").strip()
-    if not token:
-        print("No access token")
-        return
-    try:
-        user_id = jwt_service.get_user_id(token)
-        if not user_id:
-            print("Invalid Token")
-            return
-    except jwt.ExpiredSignatureError:
-        print("Token has expired")
-        return
-    
-    try:
-        user = auth_service.get_user_by_id(user_id)
-    except HTTPException as e:
-        print(f"User not found: {e.detail}")
-        return
-
-    result = pronunciation_service.get_pronunciation_result_by_id(pronunciation_id, user_id=user.user_idx)
-    
-    return result
+        logger.exception("An unexpected error occurred during speech evaluation process.")
+        raise CustomException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred during speech evaluation process."
+        )
+    finally:
+        if wav_path and os.path.exists(wav_path):
+            os.remove(wav_path)
+            logger.info(f"Cleaned up temporary WAV file: {wav_path}")
