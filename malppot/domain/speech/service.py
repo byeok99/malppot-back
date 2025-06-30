@@ -28,7 +28,7 @@ from malppot.domain.speech.G2P.KoG2Padvanced import KoG2Padvanced
 from malppot.domain.speech.feedback.comp import (
     map_jamos_with_scores,
     VISEME_TABLE,
-    prepare_interpolation_jobs_from_scores
+    make_tongue_jobs_for_syllable
 )
 from malppot.utils.text_utils import extract_unique_syllables
 
@@ -46,7 +46,69 @@ class SpeechService:
         converted_text = KoG2Padvanced(input_text)
         unique_syllable = extract_unique_syllables(converted_text)
         await self._populate_syllable_gpt_tips(unique_syllable)
+        asyncio.create_task(self._populate_syllable_tongue_videos(unique_syllable))
+
         return {"converted_text": converted_text}
+
+    async def _populate_syllable_tongue_videos(self, syllable_chars: Iterable[str]) -> None:
+        """
+        syllable_chars: 음절 리스트 (예: ['학', '교', '에'])
+        - DB에서 해당 음절의 gif_url(=video_urls)이 없는 것만 선별해서
+        - 글자 단위로 job 만들어서 영상 생성, DB 저장
+        """
+        session: Session = self.db.get_session()
+        try:
+            # 이미 DB에 등록된 syllable
+            existing_rows = session.query(Syllable).filter(Syllable.syllable_char.in_(syllable_chars)).all()
+            existing_map = {row.syllable_char: row for row in existing_rows}
+            for ch in syllable_chars:
+                syllable = existing_map.get(ch)
+                urls = []
+                if syllable and syllable.gif_url:
+                    try:
+                        urls = json.loads(syllable.gif_url)
+                    except Exception:
+                        urls = []
+                # 이미 있으면 pass
+                if urls:
+                    continue
+
+                # 1) job 생성 (초성/중성/종성에 따라 여러 조합)
+                jobs = make_tongue_jobs_for_syllable(ch)
+                # 2) 각 job마다 영상 생성 (이 부분은 await or run_in_executor)
+                video_urls = []
+                for job in jobs:
+                    video_url = await self.make_single_tongue_video(job)
+                    if video_url:
+                        video_urls.append(video_url)
+                # 3) DB 저장
+                row = syllable or Syllable(syllable_char=ch)
+                row.gif_url = json.dumps(video_urls, ensure_ascii=False)
+                if not syllable:
+                    session.add(row)
+            session.commit()
+        finally:
+            session.close()
+
+    async def make_single_tongue_video(self, job):
+        # replicate는 sync라면 run_in_executor 사용, 비동기 가능하면 await
+        import replicate
+        client = replicate.Client()
+        try:
+            output_url = await asyncio.to_thread(
+                lambda: client.run(
+                    "google-research/frame-interpolation:4f88a16a13673a8b589c18866e540556170a5bcb2ccdc12de556e800e9456d3d",
+                    input={
+                        "frame1": job["frame1"],
+                        "frame2": job["frame2"],
+                        "times_to_interpolate": 7
+                    }
+                )
+            )
+            return output_url
+        except Exception as e:
+            print(f"영상 생성 실패: {e}")
+            return None
 
     def _upsert_syllable_gif_urls(self, db: Session, gif_map: dict[str, str]) -> None:
         """
@@ -212,8 +274,8 @@ class SpeechService:
 
             # 입력 구성
             input_data = {
-                "frame1": job['frame1'],
-                "frame2": job['frame2'],
+                "frame1": f"https://api.malppot.com/static/images/{job['frame1']}",
+                "frame2": f"https://api.malppot.com/static/images/{job['frame2']}",
                 "times_to_interpolate": 7
             }
             try:
@@ -247,12 +309,12 @@ class SpeechService:
         feedback = map_jamos_with_scores(adjusted_word_phoneme_scores)
         print(feedback)
 
-        jobs = prepare_interpolation_jobs_from_scores(feedback)
-        video_pairs = self.generate_tongue_video(jobs)
-
-        if video_pairs:
-            with self.db.get_session() as session:
-                self._upsert_syllable_gif_urls(session, dict(video_pairs))
+        # jobs = prepare_interpolation_jobs_from_scores(feedback)
+        # video_pairs = self.generate_tongue_video(jobs)
+        #
+        # if video_pairs:
+        #     with self.db.get_session() as session:
+        #         self._upsert_syllable_gif_urls(session, dict(video_pairs))
 
         for f_word_feedback in feedback:
             scores_for_avg = [s["score"] for s in f_word_feedback["scores"] if "score" in s]

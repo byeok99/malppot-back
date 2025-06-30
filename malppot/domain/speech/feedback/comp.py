@@ -194,3 +194,35 @@ def prepare_interpolation_jobs_from_scores(mapped_data: list[dict]) -> list[dict
                 })
 
     return jobs
+
+
+def make_tongue_jobs_for_syllable(ch: str) -> list[dict]:
+    roles = tag_jamo_roles(ch)
+    onset = next((j for j in roles if j["position"] == "초성"), None)
+    vowel = next((j for j in roles if j["position"] == "중성"), None)
+    coda = next((j for j in roles if j["position"] == "종성"), None)
+    jobs = []
+
+    def path(j):
+        return f"https://api.malppot.com/static/images/{VISEME_TABLE.get(j['jamo'], '')}" if j and VISEME_TABLE.get(
+            j["jamo"]) else ""
+
+    # 초성→중성
+    if onset and vowel and path(onset) and path(vowel):
+        jobs.append({
+            "letter": ch,
+            "frame1": path(onset),
+            "frame2": path(vowel),
+            "segment": "초성중성",
+            "output": f"videos/{ch}_초성중성.mp4"
+        })
+    # 중성→종성
+    if vowel and coda and path(vowel) and path(coda):
+        jobs.append({
+            "letter": ch,
+            "frame1": path(vowel),
+            "frame2": path(coda),
+            "segment": "중성종성",
+            "output": f"videos/{ch}_중성종성.mp4"
+        })
+    return jobs
