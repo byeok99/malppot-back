@@ -1,34 +1,35 @@
-from fastapi import APIRouter, Request, HTTPException
-from dependency_injector.wiring import inject, Provide
+from dependency_injector.wiring import inject
+from fastapi import APIRouter, Request, Depends
+
+from malppot.common.di_providers import get_heygen_service_from_di
 from malppot.domain.heygen.schema import HeyGenGenerateRequest, HeyGenVideoResponse
-from malppot.di import DI
+from malppot.domain.heygen.service import HeyGenService
 
 router = APIRouter()
 
-@router.post("/generate-video", response_model=HeyGenVideoResponse)
-@inject
-async def generate_video(
-    request: Request,
-    body: HeyGenGenerateRequest,
-    heygen_service = Provide[DI.heygen.service],
-    jwt_service = Provide[DI.jwt_service],
-    auth_service = Provide[DI.auth.service],
-):
-    auth_header = request.headers.get("Authorization")
-    
-    token = auth_header.replace("Bearer ", "").strip() if auth_header else None
-    user_id = jwt_service.get_user_id(token)
-    user = auth_service.get_user_by_id(user_id)
 
-    video_id = await heygen_service.generate_video(script=body.text, user_idx=user.user_idx)
-    print(video_id)
+@router.get("/test")
+async def test(
+        heygen_service: HeyGenService = Depends(get_heygen_service_from_di)
+):
+    await heygen_service.generate_video("집에")
+
+
+@router.post("/generate-video", response_model=HeyGenVideoResponse)
+async def generate_video(
+        body: HeyGenGenerateRequest,
+        heygen_service: HeyGenService = Depends(get_heygen_service_from_di),
+
+):
+    video_id = await heygen_service.generate_video(script=body.text)
     return {"video_id": video_id}
+
 
 @router.post("/callback")
 @inject
 async def heygen_callback(
-    request: Request,
-    heygen_service = Provide[DI.heygen.service],
+        request: Request,
+        heygen_service=Depends(get_heygen_service_from_di),
 ):
     data = await request.json()
     print("콜백 수신:", data)
@@ -47,18 +48,11 @@ async def heygen_callback(
 
     heygen_service.update_video(video_id=video_id, video_url=video_url)
 
-@router.get("/videos/{video_id}")
+
+@router.get("/videos/{script}")
 @inject
 async def get_video_by_id(
-    video_id: str,
-    request: Request,
-    jwt_service = Provide[DI.jwt_service],
-    auth_service = Provide[DI.auth.service],
-    heygen_service = Provide[DI.heygen.service],
+        script: str,
+        heygen_service=Depends(get_heygen_service_from_di),
 ):
-    auth_header = request.headers.get("Authorization")
-    token = auth_header.replace("Bearer ", "").strip() if auth_header else None
-    user_id = jwt_service.get_user_id(token)
-    user = auth_service.get_user_by_id(user_id)
-
-    return heygen_service.get_video(video_id=video_id, user_idx=user.user_idx)
+    return await heygen_service.get_video(script=script)

@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from typing import Optional
 
 import httpx
 from fastapi import HTTPException
@@ -15,25 +14,6 @@ class HeyGenService:
             config = HeyGenConfig(**config)
         self.config = config
         self.db = db
-
-    def get_video(self, video_id: str, user_idx: int) -> dict:
-        session: Session = self.db.get_session()
-        try:
-            video_log = session.query(VideoLog).filter(
-                VideoLog.video_id == video_id,
-            ).first()
-
-            if not video_log:
-                raise HTTPException(status_code=404, detail="해당 영상이 없거나 권한이 없습니다.")
-            return {
-                "video_id": video_log.video_id,
-                "script": video_log.script,
-                "status": video_log.status.value,
-                "video_url": video_log.video_url,
-                "created_at": video_log.created_at
-            }
-        finally:
-            session.close()
 
     def update_video(self, video_id: str, video_url: str):
         session = self.db.get_session()
@@ -122,7 +102,7 @@ class HeyGenService:
             finally:
                 session.close()
 
-    async def get_video_url_by_script(self, script: str) -> Optional[str]:
+    async def get_video(self, script: str):
         session: Session = self.db.get_session()
         one_week_ago = datetime.utcnow() - timedelta(days=7)  # 일주일 전 시간 계산
         try:

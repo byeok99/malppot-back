@@ -1,3 +1,4 @@
+import os
 import re
 from collections import defaultdict
 
@@ -196,6 +197,11 @@ def prepare_interpolation_jobs_from_scores(mapped_data: list[dict]) -> list[dict
     return jobs
 
 
+def get_filename_from_url(url: str):
+    # URL에서 파일명만 추출 (파라미터 제거)
+    return os.path.basename(url).split("?")[0]
+
+
 def make_tongue_jobs_for_syllable(ch: str) -> list[dict]:
     roles = tag_jamo_roles(ch)
     onset = next((j for j in roles if j["position"] == "초성"), None)
@@ -204,25 +210,31 @@ def make_tongue_jobs_for_syllable(ch: str) -> list[dict]:
     jobs = []
 
     def path(j):
-        return f"https://api.malppot.com/static/images/{VISEME_TABLE.get(j['jamo'], '')}" if j and VISEME_TABLE.get(
-            j["jamo"]) else ""
+        # URL 전체 말고, 파일명만 리턴!
+        return VISEME_TABLE.get(j["jamo"], "") if j and VISEME_TABLE.get(j["jamo"]) else ""
 
     # 초성→중성
     if onset and vowel and path(onset) and path(vowel):
+        frame1 = path(onset)
+        frame2 = path(vowel)
+        file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
         jobs.append({
             "letter": ch,
-            "frame1": path(onset),
-            "frame2": path(vowel),
+            "frame1": f"https://api.malppot.com/static/images/{frame1}",
+            "frame2": f"https://api.malppot.com/static/images/{frame2}",
             "segment": "초성중성",
-            "output": f"videos/{ch}_초성중성.mp4"
+            "output": file_name  # 실제 저장할 파일명
         })
     # 중성→종성
     if vowel and coda and path(vowel) and path(coda):
+        frame1 = path(vowel)
+        frame2 = path(coda)
+        file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
         jobs.append({
             "letter": ch,
-            "frame1": path(vowel),
-            "frame2": path(coda),
+            "frame1": f"https://api.malppot.com/static/images/{frame1}",
+            "frame2": f"https://api.malppot.com/static/images/{frame2}",
             "segment": "중성종성",
-            "output": f"videos/{ch}_중성종성.mp4"
+            "output": file_name
         })
     return jobs

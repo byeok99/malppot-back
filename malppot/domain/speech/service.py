@@ -45,6 +45,11 @@ class SpeechService:
     async def convert(self, input_text: str):
         converted_text = KoG2Padvanced(input_text)
         unique_syllable = extract_unique_syllables(converted_text)
+
+        words = converted_text.split()
+        for word in words:
+            await self.heygen_service.generate_video(word)
+
         await self._populate_syllable_gpt_tips(unique_syllable)
         asyncio.create_task(self._populate_syllable_tongue_videos(unique_syllable))
 
@@ -80,7 +85,8 @@ class SpeechService:
                 for job in jobs:
                     video_url = await self.make_single_tongue_video(job)
                     if video_url:
-                        video_urls.append(video_url)
+                        video_urls.append(str(video_url))
+
                 # 3) DB 저장
                 row = syllable or Syllable(syllable_char=ch)
                 row.gif_url = json.dumps(video_urls, ensure_ascii=False)
@@ -90,10 +96,27 @@ class SpeechService:
         finally:
             session.close()
 
+    def get_filename_from_url(url: str):
+        return os.path.basename(url).split("?")[0]
+
     async def make_single_tongue_video(self, job):
-        # replicate는 sync라면 run_in_executor 사용, 비동기 가능하면 await
-        import replicate
+        os.environ["REPLICATE_API_TOKEN"] = self.config.replicate_key
         client = replicate.Client()
+
+        save_dir = os.path.join("malppot", "static", "tongue")
+        os.makedirs(save_dir, exist_ok=True)
+
+        # 파일명은 항상 "frame1_frame2.mp4"
+        frame1_name = os.path.basename(job["frame1"])
+        frame2_name = os.path.basename(job["frame2"])
+        file_name = f"{frame1_name}_{frame2_name}.mp4"
+        save_path = os.path.join(save_dir, file_name)
+
+        # 이미 파일이 있으면 생성 생략!
+        if os.path.exists(save_path):
+            print(f"[이미존재] {save_path}")
+            return f"/static/tongue/{file_name}"
+
         try:
             output_url = await asyncio.to_thread(
                 lambda: client.run(
@@ -105,7 +128,18 @@ class SpeechService:
                     }
                 )
             )
-            return output_url
+            if isinstance(output_url, list):
+                output_url = output_url[0]
+
+            res = requests.get(output_url)
+            if res.status_code == 200:
+                with open(save_path, "wb") as f:
+                    f.write(res.content)
+                print(f"[저장완료] {save_path}")
+                return f"/static/tongue/{file_name}"
+            else:
+                print(f"[다운로드 실패] {output_url}, status: {res.status_code}")
+                return None
         except Exception as e:
             print(f"영상 생성 실패: {e}")
             return None
@@ -274,8 +308,8 @@ class SpeechService:
 
             # 입력 구성
             input_data = {
-                "frame1": f"https://api.malppot.com/static/images/{job['frame1']}",
-                "frame2": f"https://api.malppot.com/static/images/{job['frame2']}",
+                "frame1": f"{job['frame1']}",
+                "frame2": f"{job['frame2']}",
                 "times_to_interpolate": 7
             }
             try:
@@ -296,7 +330,7 @@ class SpeechService:
                 with open(output_path, "wb") as f:
                     f.write(res.content)
                 print(f"저장 완료: {output_path}")
-                video_results.append((job['letter'], output_path))
+                video_results.append(output_path)
             else:
                 print(f"다운로드 실패: {res.status_code}")
         return video_results
@@ -307,14 +341,6 @@ class SpeechService:
             for word_text, azure_phonemes_list, scores_list, errtype_str in word_phoneme_scores
         ]
         feedback = map_jamos_with_scores(adjusted_word_phoneme_scores)
-        print(feedback)
-
-        # jobs = prepare_interpolation_jobs_from_scores(feedback)
-        # video_pairs = self.generate_tongue_video(jobs)
-        #
-        # if video_pairs:
-        #     with self.db.get_session() as session:
-        #         self._upsert_syllable_gif_urls(session, dict(video_pairs))
 
         for f_word_feedback in feedback:
             scores_for_avg = [s["score"] for s in f_word_feedback["scores"] if "score" in s]
