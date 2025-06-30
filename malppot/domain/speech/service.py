@@ -45,12 +45,12 @@ class SpeechService:
     async def convert(self, input_text: str):
         converted_text = KoG2Padvanced(input_text)
         unique_syllable = extract_unique_syllables(converted_text)
+        # await self._populate_syllable_gpt_tips(unique_syllable)
 
-        words = converted_text.split()
-        for word in words:
-            await self.heygen_service.generate_video(word)
+        # words = converted_text.split()
+        # for word in words:
+        #     await self.heygen_service.generate_video(word)
 
-        await self._populate_syllable_gpt_tips(unique_syllable)
         asyncio.create_task(self._populate_syllable_tongue_videos(unique_syllable))
 
         return {"converted_text": converted_text}
@@ -246,6 +246,9 @@ class SpeechService:
         feedback = self.map_to_feedback(word_phoneme_scores)
         original_words = original_text.split()
         word_feedbacks = self.transform_pronunciation_data(word_phoneme_scores, original_words)
+        unique_syllable = extract_unique_syllables(reference_text)
+        await self._populate_syllable_gpt_tips(unique_syllable)
+
         return {
             "reference_text": reference_text,
             "accuracy_score": assessment_result.accuracy_score,
