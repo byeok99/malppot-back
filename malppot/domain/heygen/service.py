@@ -23,7 +23,7 @@ class HeyGenService:
                 raise HTTPException(status_code=404, detail="업데이트할 영상을 찾을 수 없습니다.")
 
             video_log.video_url = video_url
-            video_log.status = VideoLogStatus.DONE
+            video_log.status = VideoLogStatus.done
             session.commit()
         except Exception as e:
             session.rollback()
@@ -35,10 +35,12 @@ class HeyGenService:
         session: Session = self.db.get_session()
         one_week_ago = datetime.utcnow() - timedelta(days=7)
         try:
-            existing_video = session.query(VideoLog).filter(
-                VideoLog.script == script,
-                VideoLog.created_at >= one_week_ago,
-            ).order_by(VideoLog.created_at.desc()).first()
+            # existing_video = session.query(VideoLog).filter(
+            #     VideoLog.script == script,
+            #     VideoLog.status ==
+            #     VideoLog.created_at >= one_week_ago,
+            # ).order_by(VideoLog.created_at.desc()).first()
+            existing_video = await self.get_video(script)
 
             if existing_video:
                 return
@@ -95,7 +97,7 @@ class HeyGenService:
                 new_video_log = VideoLog(
                     video_id=video_id,
                     script=script,
-                    status=VideoLogStatus.PENDING,
+                    status=VideoLogStatus.pending,
                 )
                 session.add(new_video_log)
                 session.commit()
@@ -108,12 +110,12 @@ class HeyGenService:
         try:
             video_log = session.query(VideoLog).filter(
                 VideoLog.script == script,
-                VideoLog.status == VideoLogStatus.DONE,
+                VideoLog.status == VideoLogStatus.done,
                 VideoLog.created_at >= one_week_ago
             ).order_by(VideoLog.created_at.desc()).first()
 
             if video_log:
-                return video_log.video_url
+                return video_log
             return None
         finally:
             session.close()

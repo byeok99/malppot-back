@@ -23,9 +23,9 @@ class PracticeWordErrorType(str, enum.Enum):
 
 
 class VideoLogStatus(str, enum.Enum):
-    PENDING = "pending"
-    DONE = "done"
-    FAILED = "failed"
+    pending = "pending"
+    done = "done"
+    failed = "failed"
 
 
 class PracticeWordPosition(str, enum.Enum):
@@ -76,7 +76,7 @@ class VideoLog(Base):
     __tablename__ = 'video_logs'
     video_id = Column(CHAR(36), primary_key=True)
     script = Column(Text)
-    status = Column(Enum(VideoLogStatus), default=VideoLogStatus.PENDING)
+    status = Column(Enum(VideoLogStatus), default=VideoLogStatus.pending)
     video_url = Column(Text)
     created_at = Column(DateTime, default=func.now())
     expires_at = Column(DateTime, nullable=True)
@@ -108,7 +108,6 @@ class PracticeWord(Base):
     word_idx = Column(CHAR(36), ForeignKey('words.word_idx'))
     spoken_text = Column(Text)
     average_score = Column(Float)
-    # error_type = Column(Enum(PracticeWordErrorType), default=PracticeWordErrorType.NONE)
     error_type = Column(
         Enum(
             'Omission',

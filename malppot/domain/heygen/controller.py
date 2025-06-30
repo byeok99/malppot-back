@@ -51,7 +51,7 @@ async def heygen_callback(
 
 @router.get("/videos/{script}")
 @inject
-async def get_video_by_id(
+async def get_video(
         script: str,
         heygen_service=Depends(get_heygen_service_from_di),
 ):
