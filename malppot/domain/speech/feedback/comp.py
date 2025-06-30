@@ -110,8 +110,8 @@ def make_tongue_jobs_for_syllable(ch: str) -> list[dict]:
         file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
         jobs.append({
             "letter": ch,
-            "frame1": frame1,
-            "frame2": frame2,
+            "frame1": f"https://api.malppot.com/static/images/{frame1}",
+            "frame2": f"https://api.malppot.com/static/images/{frame2}",
             "segment": "초성중성",
             "output": file_name
         })
@@ -123,8 +123,8 @@ def make_tongue_jobs_for_syllable(ch: str) -> list[dict]:
         file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
         jobs.append({
             "letter": ch,
-            "frame1": frame1,
-            "frame2": frame2,
+            "frame1": f"https://api.malppot.com/static/images/{frame1}",
+            "frame2": f"https://api.malppot.com/static/images/{frame2}",
             "segment": "중성종성",
             "output": file_name
         })

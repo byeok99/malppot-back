@@ -173,13 +173,12 @@ class SpeechService:
         if not target_chars:
             return
 
-        # ──────────────────────────────────────────
-        # 1) 이미 DB에 있는지 조사
-        # ──────────────────────────────────────────
-        session: Session = self.db.get_session()
+        # ───────────────────────────────
+        # 1) 이미 DB에 있는지 조사 (세션1)
+        # ───────────────────────────────
+        session = self.db.get_session()
         try:
             existing_rows = session.query(Syllable).filter(Syllable.syllable_char.in_(target_chars)).all()
-
             existing_map = {row.syllable_char: row for row in existing_rows}
         finally:
             session.close()
@@ -192,12 +191,12 @@ class SpeechService:
         if not need_gpt:
             return
 
-        # ──────────────────────────────────────────
+        # ───────────────────────────────
         # 2) GPT 호출을 동시 실행
-        # ──────────────────────────────────────────
+        # ───────────────────────────────
         async def fetch_tip(ch: str):
             tip = await self.gpt_service.ask(
-                f"너는 한국어 교정 발음 선생님이야."
+                f"너는 어린이 발음 교정 선생님이야."
                 f"다음은 한글 음절을 정확하게 발음하는 방법을 설명하는 예시야:"
                 f"예시:"
                 f"‘학’ 발음을 할 때는 혀끝을 아랫니 뒤에 가볍게 대고, 혀의 뒷부분을 입천장 뒤쪽으로 힘껏 들어올렸다가 ‘탁!’ 하고 터뜨려보세요. 숨을 잠시 막는 느낌이 중요해요."
@@ -207,26 +206,29 @@ class SpeechService:
                 f"- '‘{ch}’ 발음을 할 때는 ~' 으로 시작해줘."
                 f"- 입 모양, 혀의 위치, 공기의 흐름을 설명해줘."
                 f"- 너무 딱딱하지 않고, 친절한 구어체로 말해줘."
-                f"- 한 문단으로, 1~2문장 이내로 요약해줘."
+                f"- 한 문장으로 요약해줘."
+                f"- 표준어를 사용해줘."
+                f"- 어린아이에게 설명하듯 쉬운 단어를 사용해줘."
             )
             return ch, tip
 
         tips = await asyncio.gather(*(fetch_tip(ch) for ch in need_gpt))
 
-        # ──────────────────────────────────────────
-        # 3) 한 트랜잭션에 INSERT/UPDATE
-        # ──────────────────────────────────────────
+        # ───────────────────────────────
+        # 3) 한 트랜잭션에 INSERT/UPDATE (세션2)
+        # ───────────────────────────────
         session = self.db.get_session()
         try:
             for ch, gpt_tip in tips:
                 if not gpt_tip:
                     continue
 
-                row = existing_map.get(ch)
+                # ⚡ 두 번째 세션에서 반드시 직접 select!
+                row = session.query(Syllable).filter_by(syllable_char=ch).first()
                 if row:
                     row.gpt_tip = gpt_tip  # UPDATE
                 else:
-                    session.add(  # INSERT
+                    session.add(
                         Syllable(
                             syllable_char=ch,
                             gif_url=VISEME_TABLE.get(ch, None),
@@ -241,13 +243,13 @@ class SpeechService:
             session.close()
 
     async def evaluate(self, original_text: str, reference_text: str, audio_path: str) -> dict:
+        unique_syllable = extract_unique_syllables(reference_text)
+        await self._populate_syllable_gpt_tips(unique_syllable)
         parsed, assessment_result = self.run_azure_evaluation(reference_text, audio_path)
         word_phoneme_scores = self.parse_evaluation_result(parsed)
         feedback = self.map_to_feedback(word_phoneme_scores)
         original_words = original_text.split()
         word_feedbacks = self.transform_pronunciation_data(word_phoneme_scores, original_words)
-        unique_syllable = extract_unique_syllables(reference_text)
-        await self._populate_syllable_gpt_tips(unique_syllable)
 
         return {
             "reference_text": reference_text,
