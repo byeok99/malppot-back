@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+
 from dependency_injector import wiring
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +10,8 @@ from fastapi.staticfiles import StaticFiles
 from malppot.common.errors import CustomException
 from malppot.di import DI
 
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.append(str(PROJECT_ROOT))
 app = FastAPI()
 
 app.add_middleware(
@@ -21,7 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=f"{PROJECT_ROOT}/malppot/static"), name="static")
 
 container = DI()
 
