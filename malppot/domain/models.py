@@ -144,7 +144,7 @@ class PronunciationScore(Base):
 class Syllable(Base):
     __tablename__ = 'syllables'
     syllable_char = Column(String(10), primary_key=True)
-    gif_url = Column(String(500), nullable=False)
+    gif_url = Column(JSON, nullable=False)
     gpt_tip = Column(Text, nullable=True)
 
 

@@ -63,12 +63,13 @@ class SpeechService:
             .all()
         }
 
-        for ch, url in gif_map.items():
+        for ch, url_list in gif_map.items():
             row = existing.get(ch)
+            url_json = json.dumps(url_list, ensure_ascii=False)  # 리스트 → JSON 문자열
             if row:
-                row.gif_url = url
+                row.gif_url = url_json
             else:
-                db.add(Syllable(syllable_char=ch, gif_url=url, gpt_tip=None))
+                db.add(Syllable(syllable_char=ch, gif_url=url_json, gpt_tip=None))
         db.commit()
 
     async def _populate_syllable_gpt_tips(self, syllable_chars: Iterable[str]) -> None:
@@ -445,7 +446,7 @@ class SpeechService:
                     syllable_obj = session.query(Syllable).filter_by(syllable_char=syllable_char).first()
                     syllables.append({
                         "char": syllable_char,
-                        "gif_url": syllable_obj.gif_url if syllable_obj else "",
+                        "gif_url": json.loads(syllable_obj.gif_url) if syllable_obj and syllable_obj.gif_url else [],
                         "gpt_tip": syllable_obj.gpt_tip if syllable_obj else ""
                     })
 
