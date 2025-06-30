@@ -7,6 +7,19 @@ from malppot.common.errors import CustomException
 from malppot.di import DI
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5174",
+        "https://www.malppot.com",
+        "https://malppot.com"]
+    ,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 container = DI()
 
 import malppot.domain.auth.controller
@@ -28,18 +41,6 @@ wiring.wire(
         malppot.domain.mypage.controller,
         malppot.domain.game.controller,
     ]
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5174",
-        "https://www.malppot.com",
-        "https://malppot.com"]
-    ,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
 )
 
 
