@@ -1,9 +1,9 @@
 import os
 import re
-from collections import defaultdict
 
 import pandas as pd
 
+# 한글 분해 상수
 GA_CODE = 44032
 ONSET = 588
 CODA = 28
@@ -12,13 +12,11 @@ ONSET_LIST = (
     'ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ',
     'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'
 )
-
 VOWEL_LIST = (
     'ㅏ', 'ㅐ', 'ㅑ', 'ㅒ', 'ㅓ', 'ㅔ', 'ㅕ', 'ㅖ',
     'ㅗ', 'ㅘ', 'ㅙ', 'ㅚ', 'ㅛ', 'ㅜ', 'ㅝ', 'ㅞ',
     'ㅟ', 'ㅠ', 'ㅡ', 'ㅢ', 'ㅣ'
 )
-
 CODA_LIST = (
     '', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ',
     'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ',
@@ -26,33 +24,112 @@ CODA_LIST = (
     'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'
 )
 
-ALLOWED_JAMOS = set(ONSET_LIST + VOWEL_LIST + CODA_LIST)
+# CSV에서 viseme 경로를 읽는 함수
 KO2PIC_CSV_PATH = 'malppot/domain/speech/feedback/ko2pic.csv'
 
 
 def load_viseme_table():
     df = pd.read_csv(KO2PIC_CSV_PATH)
     viseme_dict = dict(zip(df['korean'], df['picture_path_1']))
+    # 예: {'ㅏ': '.../a.png', 'ㅅ_plain': '.../s.png', 'ㅅ_palatal': '.../sh.png', ...}
     return viseme_dict
 
 
 VISEME_TABLE = load_viseme_table()
 
+# 변이음(ㅅ, ㅆ) 구분용
+PALATAL_VOWELS = {'ㅣ', 'ㅑ', 'ㅒ', 'ㅕ', 'ㅖ', 'ㅛ', 'ㅠ'}
 
-def _split_triplets(jamo_list: list[dict]) -> list[list[dict]]:
+
+def get_sibilant_key(onset: str, vowel: str) -> str:
     """
-    tag_jamo_roles() 결과(초·중·종 나열) → 글자별 목록으로 묶어 준다.
-    (종성이 없는 글자는 2개 길이)
+    ㅅ/ㅆ + i계열 모음이면 _palatal, 아니면 _plain
     """
-    triplets, buf = [], []
-    for j in jamo_list:
-        buf.append(j)
-        if j["position"] == "종성" or len(buf) == 2:  # 종성 없을 때는 초·중만
-            triplets.append(buf)
-            buf = []
-    if buf:
-        triplets.append(buf)
-    return triplets
+    if onset in {'ㅅ', 'ㅆ'}:
+        if vowel in PALATAL_VOWELS:
+            return f"변이음{onset}"
+        else:
+            return f"{onset}"
+    return onset
+
+
+def get_filename_from_url(url: str):
+    # URL에서 파일명만 추출 (파라미터 제거)
+    return os.path.basename(url).split("?")[0]
+
+
+def tag_jamo_roles(hangul: str) -> list[dict]:
+    """
+    한글 음절 → 초/중/종 분해해서 position tagging
+    """
+    result = []
+    for letter in hangul:
+        if not re.match(r'^[가-힣]$', letter):
+            continue
+
+        chr_code = ord(letter) - GA_CODE
+        onset = chr_code // ONSET
+        vowel = (chr_code % ONSET) // CODA
+        coda = (chr_code % ONSET) % CODA
+
+        result.append({"jamo": ONSET_LIST[onset], "position": "초성"})
+        result.append({"jamo": VOWEL_LIST[vowel], "position": "중성"})
+        if CODA_LIST[coda]:
+            result.append({"jamo": CODA_LIST[coda], "position": "종성"})
+    return result
+
+
+def make_tongue_jobs_for_syllable(ch: str) -> list[dict]:
+    """
+    초성-중성, 중성-종성의 혀/입모양 frame pair를 만드는 함수.
+    변이음(ㅅ/ㅆ), 초성 'ㅎ'의 특수성 반영!
+    """
+    roles = tag_jamo_roles(ch)
+    onset = next((j for j in roles if j["position"] == "초성"), None)
+    vowel = next((j for j in roles if j["position"] == "중성"), None)
+    coda = next((j for j in roles if j["position"] == "종성"), None)
+    jobs = []
+
+    def path(j):
+        # 1. ㅅ/ㅆ 변이음 분기
+        if j and j["jamo"] in {"ㅅ", "ㅆ"} and j["position"] == "초성":
+            v = vowel["jamo"] if vowel else ""
+            key = get_sibilant_key(j["jamo"], v)
+            return VISEME_TABLE.get(key, "")
+        # 2. ㅎ 예외 처리: 초성 'ㅎ' → 모음 frame
+        if j and j["jamo"] == "ㅎ" and j["position"] == "초성":
+            # return VISEME_TABLE.get(vowel["jamo"], "") if vowel else ""
+            return
+        # 3. 일반 자모
+        return VISEME_TABLE.get(j["jamo"], "") if j else ""
+
+    # [1] 초성→중성 (단, onset이 'ㅎ'이면 frame1도 중성 프레임)
+    if onset and vowel and path(onset) and path(vowel):
+        frame1 = path(onset)
+        frame2 = path(vowel)
+        file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
+        jobs.append({
+            "letter": ch,
+            "frame1": frame1,
+            "frame2": frame2,
+            "segment": "초성중성",
+            "output": file_name
+        })
+
+    # [2] 중성→종성 (그대로)
+    if vowel and coda and path(vowel) and path(coda):
+        frame1 = path(vowel)
+        frame2 = path(coda)
+        file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
+        jobs.append({
+            "letter": ch,
+            "frame1": frame1,
+            "frame2": frame2,
+            "segment": "중성종성",
+            "output": file_name
+        })
+
+    return jobs
 
 
 def map_jamos_with_scores(word_score_list: list) -> list:
@@ -115,126 +192,3 @@ def map_jamos_with_scores(word_score_list: list) -> list:
         })
 
     return result
-
-
-def tag_jamo_roles(hangul: str) -> list[dict]:
-    result = []
-    for letter in hangul:
-        if not re.match(r'^[가-힣]$', letter):
-            continue
-
-        chr_code = ord(letter) - GA_CODE
-        onset = chr_code // ONSET
-        vowel = (chr_code % ONSET) // CODA
-        coda = (chr_code % ONSET) % CODA
-
-        result.append({"jamo": ONSET_LIST[onset], "position": "초성"})
-        result.append({"jamo": VOWEL_LIST[vowel], "position": "중성"})  # 중성
-        if CODA_LIST[coda]:
-            result.append({"jamo": CODA_LIST[coda], "position": "종성"})
-
-    return result
-
-
-def prepare_interpolation_jobs_from_scores(mapped_data: list[dict]) -> list[dict]:
-    """
-    • `scores` 유무와 관계없이(=Omission이어도) 모든 글자에 대해
-      초성→중성, 중성→종성 영상을 만든다.
-    • 같은 글자 여러 번 나오면 _1, _2 … 접미사를 붙여 중복 방지.
-    """
-    jobs: list[dict] = []
-    letter_count: defaultdict[str, int] = defaultdict(int)  # 글자별 중복 카운터
-
-    for entry in mapped_data:
-        word = entry["word"]
-        scores = entry.get("scores", [])
-
-        # 1) 글자 단위 triplet 준비 ------------------------------------------------
-        if scores:
-            # 이미 position(초성/중성/종성) 정보가 있다
-            triplets = _split_triplets(scores)
-        else:
-            # 점수가 없으면 글자 분해해서 role → position 으로 맞춰 줌
-            triplets = _split_triplets(tag_jamo_roles(word))
-
-        # 2) triplet → 영상 job -----------------------------------------------------
-        for idx, t in enumerate(triplets):
-            if idx >= len(word):  # 방어: 글자수 초과
-                continue
-            letter = word[idx]
-
-            onset = next((j for j in t if j["position"] == "초성"), None)
-            vowel = next((j for j in t if j["position"] == "중성"), None)
-            coda = next((j for j in t if j["position"] == "종성"), None)
-
-            def path(j):
-                return VISEME_TABLE.get(j["jamo"], "") if j else ""
-
-            def make_name(segment: str) -> str:
-                n = letter_count[letter]
-                letter_count[letter] += 1
-                suffix = "" if n == 0 else f"_{n}"
-                return f"videos/{letter}{suffix}_{segment}.mp4"
-
-            # 초성 → 중성
-            if onset and vowel and path(onset) and path(vowel):
-                jobs.append({
-                    "letter": letter,
-                    "frame1": path(onset),
-                    "frame2": path(vowel),
-                    "output": make_name("초성중성"),
-                })
-
-            # 중성 → 종성
-            if vowel and coda and path(vowel) and path(coda):
-                jobs.append({
-                    "letter": letter,
-                    "frame1": path(vowel),
-                    "frame2": path(coda),
-                    "output": make_name("중성종성"),
-                })
-
-    return jobs
-
-
-def get_filename_from_url(url: str):
-    # URL에서 파일명만 추출 (파라미터 제거)
-    return os.path.basename(url).split("?")[0]
-
-
-def make_tongue_jobs_for_syllable(ch: str) -> list[dict]:
-    roles = tag_jamo_roles(ch)
-    onset = next((j for j in roles if j["position"] == "초성"), None)
-    vowel = next((j for j in roles if j["position"] == "중성"), None)
-    coda = next((j for j in roles if j["position"] == "종성"), None)
-    jobs = []
-
-    def path(j):
-        # URL 전체 말고, 파일명만 리턴!
-        return VISEME_TABLE.get(j["jamo"], "") if j and VISEME_TABLE.get(j["jamo"]) else ""
-
-    # 초성→중성
-    if onset and vowel and path(onset) and path(vowel):
-        frame1 = path(onset)
-        frame2 = path(vowel)
-        file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
-        jobs.append({
-            "letter": ch,
-            "frame1": f"https://api.malppot.com/static/images/{frame1}",
-            "frame2": f"https://api.malppot.com/static/images/{frame2}",
-            "segment": "초성중성",
-            "output": file_name  # 실제 저장할 파일명
-        })
-    # 중성→종성
-    if vowel and coda and path(vowel) and path(coda):
-        frame1 = path(vowel)
-        frame2 = path(coda)
-        file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
-        jobs.append({
-            "letter": ch,
-            "frame1": f"https://api.malppot.com/static/images/{frame1}",
-            "frame2": f"https://api.malppot.com/static/images/{frame2}",
-            "segment": "중성종성",
-            "output": file_name
-        })
-    return jobs

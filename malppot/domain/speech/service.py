@@ -600,3 +600,7 @@ class SpeechService:
             raise
         finally:
             session.close()
+
+    def test(self):
+        # print(extract_mouth_movement_sequence("밥을 먹자!"))  # 예시 출력
+        print(make_tongue_jobs_for_syllable('한'))
