@@ -137,11 +137,11 @@ class SpeechService:
     def get_filename_from_url(url: str):
         return os.path.basename(url).split("?")[0]
 
-    async def make_single_video(self, job, save_path):
+    async def make_single_video(self, job, type):
         os.environ["REPLICATE_API_TOKEN"] = self.config.replicate_key
         client = replicate.Client()
 
-        if save_path == 'tongue':
+        if type == 'tongue':
             save_dir = os.path.join("malppot", "static", "tongue")
         else:
             save_dir = os.path.join("malppot", "static", "lips")
@@ -157,7 +157,7 @@ class SpeechService:
         # 이미 파일이 있으면 생성 생략!
         if os.path.exists(save_path):
             print(f"[이미존재] {save_path}")
-            if save_path == 'tongue':
+            if type == 'tongue':
                 path = f"/static/tongue/{file_name}"
             else:
                 path = f"/static/lips/{file_name}"
@@ -182,7 +182,7 @@ class SpeechService:
                 with open(save_path, "wb") as f:
                     f.write(res.content)
                 print(f"[저장완료] {save_path}")
-                if save_path == 'tongue':
+                if type == 'tongue':
                     path = f"/static/tongue/{file_name}"
                 else:
                     path = f"/static/lips/{file_name}"
