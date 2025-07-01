@@ -150,7 +150,7 @@ def make_lips_jobs_from_sequence(seq: list) -> list[dict]:
 
     def lips_path(jamo):
         frame = LIPS_TABLE.get(jamo, "")
-        return f"https://api.malppot.com/static/images/lips/{frame}" if frame else ""
+        return f"https://api.malppot.com/static/lips/{frame}" if frame else ""
 
     # 1개만: 단독 프레임 job
     if len(seq) == 1:
@@ -169,7 +169,6 @@ def make_lips_jobs_from_sequence(seq: list) -> list[dict]:
     for i in range(len(seq) - 1):
         frame1 = lips_path(seq[i])
         frame2 = lips_path(seq[i + 1])
-        print(frame1, frame2)
         if frame1 and frame2 and frame1 != frame2:
             file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.png"
             jobs.append({
