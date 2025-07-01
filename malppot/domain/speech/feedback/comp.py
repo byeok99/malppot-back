@@ -26,16 +26,23 @@ CODA_LIST = (
 
 # CSV에서 viseme 경로를 읽는 함수
 KO2PIC_CSV_PATH = 'malppot/domain/speech/feedback/ko2pic.csv'
+LIPS_TABLE_CSV_PATH = 'malppot/domain/speech/feedback/lips_table.csv'
 
 
 def load_viseme_table():
     df = pd.read_csv(KO2PIC_CSV_PATH)
     viseme_dict = dict(zip(df['korean'], df['picture_path_1']))
-    # 예: {'ㅏ': '.../a.png', 'ㅅ_plain': '.../s.png', 'ㅅ_palatal': '.../sh.png', ...}
     return viseme_dict
 
 
+def load_lips_table():
+    df = pd.read_csv(LIPS_TABLE_CSV_PATH)
+    lips_dict = dict(zip(df['korean'], df['picture_path_1']))
+    return lips_dict
+
+
 VISEME_TABLE = load_viseme_table()
+LIPS_TABLE = load_lips_table()
 
 # 변이음(ㅅ, ㅆ) 구분용
 PALATAL_VOWELS = {'ㅣ', 'ㅑ', 'ㅒ', 'ㅕ', 'ㅖ', 'ㅛ', 'ㅠ'}
@@ -132,6 +139,47 @@ def make_tongue_jobs_for_syllable(ch: str) -> list[dict]:
     return jobs
 
 
+def make_lips_jobs_from_sequence(seq: list) -> list[dict]:
+    """
+    입모양 sequence(list[str])를 받아
+    - 1개: 단독 프레임
+    - 2개 이상: 인접 쌍(pair)마다 job
+    letter 정보는 포함하지 않음
+    """
+    jobs = []
+
+    def lips_path(jamo):
+        frame = LIPS_TABLE.get(jamo, "")
+        return f"https://api.malppot.com/static/lips/{frame}" if frame else ""
+
+    # 1개만: 단독 프레임 job
+    if len(seq) == 1:
+        frame1 = lips_path(seq[0])
+        if frame1:
+            file_name = f"{get_filename_from_url(frame1)}.png"
+            jobs.append({
+                "frame1": frame1,
+                "frame2": None,
+                "segment": "단독",
+                "output": file_name
+            })
+        return jobs
+
+    # 2개 이상: 인접 pair마다 jobs
+    for i in range(len(seq) - 1):
+        frame1 = lips_path(seq[i])
+        frame2 = lips_path(seq[i + 1])
+        if frame1 and frame2 and frame1 != frame2:
+            file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.png"
+            jobs.append({
+                "frame1": frame1,
+                "frame2": frame2,
+                "segment": f"{i}to{i + 1}",
+                "output": file_name
+            })
+    return jobs
+
+
 def map_jamos_with_scores(word_score_list: list) -> list:
     result = []
     for word, score_list, errtype in word_score_list:
@@ -192,3 +240,41 @@ def map_jamos_with_scores(word_score_list: list) -> list:
         })
 
     return result
+
+
+def extract_lip_movement_sequence(hangul: str) -> list:
+    """
+    한글 단어 입력 시, 각 글자별로 입모양에 영향을 주는 자모만
+    초성→중성→종성 순서대로 추출해서 리스트로 반환합니다.
+    (단, 초성 ㅎ은 건너뜀, ㅅ/ㅆ은 변이음 구분, lips_table.csv 기준)
+    """
+    results = []
+    for char in hangul:
+        if not re.match(r'^[가-힣]$', char):
+            continue
+        code = ord(char) - GA_CODE
+        onset_idx = code // ONSET
+        vowel_idx = (code % ONSET) // CODA
+        coda_idx = (code % ONSET) % CODA
+        onset = ONSET_LIST[onset_idx]
+        vowel = VOWEL_LIST[vowel_idx]
+        coda = CODA_LIST[coda_idx]
+        seq = []
+
+        # 초성
+        if onset == 'ㅎ':
+            pass
+        elif onset in {'ㅅ', 'ㅆ'}:
+            sibilant = get_sibilant_key(onset, vowel)
+            if sibilant in LIPS_TABLE:
+                seq.append(sibilant)
+        elif onset in LIPS_TABLE:
+            seq.append(onset)
+        # 중성
+        if vowel in LIPS_TABLE:
+            seq.append(vowel)
+        # 종성
+        if coda and coda != 'ㅎ' and coda in LIPS_TABLE:
+            seq.append(coda)
+        results.append({"letter": char, "sequence": seq})
+    return results
