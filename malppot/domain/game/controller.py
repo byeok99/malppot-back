@@ -117,7 +117,7 @@ async def save_clear_stage(
         raise CustomException(status_code=500, detail="스테이지 클리어 기록 저장 중 오류가 발생했습니다.")
 
 
-@router.post("/best-score")
+@router.post("/endless")
 async def save_best_score(
         request: SaveBestScoreRequest,
         game_service: GameService = Depends(get_game_service_from_di),
