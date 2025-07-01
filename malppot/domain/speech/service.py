@@ -56,42 +56,37 @@ class SpeechService:
         return {"converted_text": converted_text}
 
     async def _populate_syllable_tongue_videos(self, syllable_chars: Iterable[str]) -> None:
-        """
-        syllable_chars: 음절 리스트 (예: ['학', '교', '에'])
-        - DB에서 해당 음절의 tongue_url(=video_urls)이 없는 것만 선별해서
-        - 글자 단위로 job 만들어서 영상 생성, DB 저장
-        """
         session: Session = self.db.get_session()
         try:
-            # 이미 DB에 등록된 syllable
             existing_rows = session.query(Syllable).filter(Syllable.syllable_char.in_(syllable_chars)).all()
             existing_map = {row.syllable_char: row for row in existing_rows}
             for ch in syllable_chars:
-                syllable = existing_map.get(ch)
+                row = existing_map.get(ch)
                 urls = []
-                if syllable and syllable.tongue_url:
+                if row and row.tongue_url:
                     try:
-                        urls = json.loads(syllable.tongue_url)
+                        urls = json.loads(row.tongue_url)
                     except Exception:
-                        urls = []
-                # 이미 있으면 pass
+                        urls = None
                 if urls:
                     continue
 
-                # 1) job 생성 (초성/중성/종성에 따라 여러 조합)
                 jobs = make_tongue_jobs_for_syllable(ch)
-                # 2) 각 job마다 영상 생성 (이 부분은 await or run_in_executor)
                 video_urls = []
                 for job in jobs:
                     video_url = await self.make_single_video(job, 'tongue')
                     if video_url:
                         video_urls.append(str(video_url))
 
-                # 3) DB 저장
-                row = syllable or Syllable(syllable_char=ch)
-                row.tongue_url = json.dumps(video_urls, ensure_ascii=False)
-                if not syllable:
-                    session.add(row)
+                if row:
+                    row.tongue_url = json.dumps(video_urls, ensure_ascii=False)  # update만!
+                else:
+                    session.add(
+                        Syllable(
+                            syllable_char=ch,
+                            tongue_url=json.dumps(video_urls, ensure_ascii=False)
+                        )
+                    )
             session.commit()
         finally:
             session.close()
@@ -105,13 +100,13 @@ class SpeechService:
             for entry in lips_movement:
                 ch = entry["letter"]
                 seq = entry["sequence"]
-                syllable = existing_map.get(ch)
+                row = existing_map.get(ch)
                 urls = []
-                if syllable and syllable.lips_url:
+                if row and row.lips_url:
                     try:
-                        urls = json.loads(syllable.lips_url)
+                        urls = json.loads(row.lips_url)
                     except Exception:
-                        urls = []
+                        urls = None
                 if urls:
                     continue
 
@@ -119,17 +114,22 @@ class SpeechService:
                 video_urls = []
                 for job in jobs:
                     if job['segment'] == '단독':
-                        video_url = job['frame1']
+                        frame1_path = job['frame1']
+                        # URL, 경로 뭐든 파일명만 뽑아서 씀
+                        filename = os.path.basename(frame1_path)
+                        video_url = f"/static/images/lips/{filename}"
                     else:
-                        video_url = await self.make_single_video(job, 'lips')  # lips 영상도 같은 함수 사용
-
+                        video_url = await self.make_single_video(job, 'lips')
                     if video_url:
                         video_urls.append(str(video_url))
 
-                row = syllable or Syllable(syllable_char=ch)
-                row.lips_url = json.dumps(video_urls, ensure_ascii=False)
-                if not syllable:
-                    session.add(row)
+                if row:
+                    row.lips_url = json.dumps(video_urls, ensure_ascii=False)  # update
+                else:
+                    session.add(Syllable(
+                        syllable_char=ch,
+                        lips_url=json.dumps(video_urls, ensure_ascii=False)
+                    ))
             session.commit()
         finally:
             session.close()
@@ -157,7 +157,11 @@ class SpeechService:
         # 이미 파일이 있으면 생성 생략!
         if os.path.exists(save_path):
             print(f"[이미존재] {save_path}")
-            return f"/static/tongue/{file_name}"
+            if save_path == 'tongue':
+                path = f"/static/tongue/{file_name}"
+            else:
+                path = f"/static/lips/{file_name}"
+            return path
 
         try:
             output_url = await asyncio.to_thread(
@@ -178,7 +182,11 @@ class SpeechService:
                 with open(save_path, "wb") as f:
                     f.write(res.content)
                 print(f"[저장완료] {save_path}")
-                return f"/static/tongue/{file_name}"
+                if save_path == 'tongue':
+                    path = f"/static/tongue/{file_name}"
+                else:
+                    path = f"/static/lips/{file_name}"
+                return path
             else:
                 print(f"[다운로드 실패] {output_url}, status: {res.status_code}")
                 return None
@@ -250,6 +258,7 @@ class SpeechService:
                         Syllable(
                             syllable_char=ch,
                             tongue_url=VISEME_TABLE.get(ch, None),
+                            lips_url=VISEME_TABLE.get(ch, None),
                             gpt_tip=gpt_tip,
                         )
                     )
@@ -520,7 +529,9 @@ class SpeechService:
                     syllables.append({
                         "char": syllable_char,
                         "tongue_url": json.loads(
-                            syllable_obj.tongue_url) if syllable_obj and syllable_obj.tongue_url else [],
+                            syllable_obj.tongue_url) if syllable_obj and syllable_obj.tongue_url else None,
+                        "lips_url": json.loads(
+                            syllable_obj.lips_url) if syllable_obj and syllable_obj.lips_url else None,
                         "gpt_tip": syllable_obj.gpt_tip if syllable_obj else ""
                     })
 
@@ -587,12 +598,40 @@ class SpeechService:
         finally:
             session.close()
 
-    # def make_lips_jobs_for_word(word: str) -> list[dict]:
-    #     jobs = []
-    #     for ch in word:
-    #         if re.match(r'^[가-힣]$', ch):
-    #             jobs.extend(make_lips_jobs_for_syllable(ch))
-    #     return jobs
+    def get_syllable_detail(self, char: str) -> dict:
+        """
+        DB에서 해당 음절의 혀모양, 입모양, gpt_tip을 조회해 dict로 반환
+        """
+        session: Session = self.db.get_session()
+        try:
+            row = session.query(Syllable).filter_by(syllable_char=char).first()
+            if not row:
+                return {
+                    "char": char,
+                    "tongue_url": [],
+                    "lips_url": [],
+                    "gpt_tip": ""
+                }
+            tongue_url = []
+            lips_url = []
+            if row.tongue_url:
+                try:
+                    tongue_url = json.loads(row.tongue_url)
+                except Exception:
+                    tongue_url = []
+            if row.lips_url:
+                try:
+                    lips_url = json.loads(row.lips_url)
+                except Exception:
+                    lips_url = []
+            return {
+                "char": char,
+                "tongue_url": tongue_url,
+                "lips_url": lips_url,
+                "gpt_tip": row.gpt_tip or ""
+            }
+        finally:
+            session.close()
 
     def test(self):
         results = extract_lip_movement_sequence("밥을 먹자!")
