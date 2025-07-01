@@ -12,7 +12,7 @@ from malppot.common.errors import (
     UserNotFoundException
 )
 from malppot.domain.models import User
-from malppot.domain.speech.schema import ConvertResponse, ConvertRequest
+from malppot.domain.speech.schema import ConvertResponse, ConvertRequest, SyllableDetailResponse
 from malppot.domain.speech.service import SpeechService
 from malppot.utils.audio_utils import convert_upload_to_wav
 
@@ -85,3 +85,16 @@ async def evaluate(
         if wav_path and os.path.exists(wav_path):
             os.remove(wav_path)
             logger.info(f"Cleaned up temporary WAV file: {wav_path}")
+
+
+@router.get("/syllable/{char}", response_model=SyllableDetailResponse)
+async def get_syllable_detail(
+        char: str,
+        speech_service: SpeechService = Depends(get_speech_service_from_di)
+):
+    print(char)
+    """
+    한글 음절(char)에 대한 입모양, 혀모양, gpt_tip 정보를 조회
+    """
+    result = speech_service.get_syllable_detail(char)
+    return SyllableDetailResponse(**result)

@@ -18,7 +18,8 @@ class PhonemeScore(BaseModel):
 
 class SyllableDetail(BaseModel):
     char: str
-    gifUrl: Optional[str] = None  # 혀 모양 GIF 이미지 URL
+    tongueUrl: Optional[str] = None  # 혀 모양 GIF 이미지 URL
+    lipsUrl: Optional[str] = None
     score: Optional[float] = None
     gptTip: Optional[str] = None
 
@@ -38,3 +39,10 @@ class EvaluationResponse(BaseModel):
     fluencyScore: float = Field(..., alias="fluency_score")  # 유창성 점수
     completenessScore: float = Field(..., alias="completeness_score")  # 완전성 점수
     wordFeedbacks: List[WordFeedback]
+
+
+class SyllableDetailResponse(BaseModel):
+    char: str
+    tongue_url: Optional[List[str]]
+    lips_url: Optional[List[str]]
+    gpt_tip: Optional[str] = ""
