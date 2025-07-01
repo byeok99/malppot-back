@@ -5,6 +5,7 @@ from sqlalchemy import select, distinct, func
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.orm import Session
 
+from malppot.common.errors import CustomException
 from malppot.common.gpt_service import GPTService
 from malppot.domain.game.schema import StageData
 from malppot.domain.models import (
@@ -119,21 +120,28 @@ class GameService:
 
     async def save_endless_best_score(self, user_idx: int, new_score: int) -> None:
         session: Session = self.db.get_session()
+        try:
+            stmt = insert(EndlessScores).values(
+                user_idx=user_idx,
+                best_score=new_score,
+                updated_at=datetime.utcnow()
+            )
+            update_dict = {
+                "best_score": stmt.inserted.best_score,
+                "updated_at": datetime.utcnow(),
+            }
+            stmt = stmt.on_duplicate_key_update(**update_dict)
 
-        stmt = insert(EndlessScores).values(
-            user_idx=user_idx,
-            best_score=new_score,
-            updated_at=datetime.utcnow()
-        )
-        stmt = stmt.on_duplicate_key_update(
-            best_score=stmt.inserted.best_score,
-            updated_at=datetime.utcnow()
-        )
-        session.execute(stmt)
-        session.commit()
-
-        session.commit()
-        session.close()
+            session.execute(stmt)
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            raise CustomException(
+                status_code=500,
+                detail="무한 도전 모드 점수 저장 중 오류가 발생했습니다."
+            )  # or raise CustomException(...) 등으로 감싸기
+        finally:
+            session.close()
 
     async def get_best_score(self, user_idx: int) -> int:
         session: Session = self.db.get_session()
