@@ -379,10 +379,23 @@ class MyPageService:
                           PracticeWord.error_type)
                 .all()
             )
-            pos_avg: dict[str, float] = defaultdict(float)
+            pos_scores = defaultdict(list)  # {"초성": [score, ...], ...}
+            for pos, avg, err, cnt in pos_rows:
+                # avg는 error_type별 평균이므로 cnt만큼 점수를 복원
+                # 실제로는 (원본 데이터면 score를 바로 모으는게 가장 좋음)
+                # 여기선 avg*cnt로 임시 복원 (실제점수 대신)
+                if avg is not None:
+                    pos_scores[pos].extend([avg] * cnt)
+
+            pos_avg = {}
+            for pos, scores in pos_scores.items():
+                if scores:
+                    pos_avg[pos] = sum(scores) / len(scores)
+                else:
+                    pos_avg[pos] = 0.0
+
             pos_err: dict[str, DefaultDict[str, int]] = defaultdict(lambda: defaultdict(int))
             for pos, avg, err, cnt in pos_rows:
-                pos_avg[pos] = avg
                 pos_err[pos][_err_enum_to_kor(err)] += cnt
 
             pos_analysis: dict[str, PhonemePositionAnalysis] = {}
