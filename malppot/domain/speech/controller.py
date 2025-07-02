@@ -59,7 +59,6 @@ async def evaluate(
         result = await speech_service.evaluate(original_text, reference_text, wav_path)
         session_id = speech_service.save_to_practice_tables(user.user_idx, original_text, result)
         speech_service.update_user_practice_summary(user.user_idx)
-
         return {
             "session_id": session_id,
             "reference_text": original_text,
@@ -92,7 +91,6 @@ async def get_syllable_detail(
         char: str,
         speech_service: SpeechService = Depends(get_speech_service_from_di)
 ):
-    print(char)
     """
     한글 음절(char)에 대한 입모양, 혀모양, gpt_tip 정보를 조회
     """

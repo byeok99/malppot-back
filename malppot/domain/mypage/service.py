@@ -1,9 +1,3 @@
-"""MyPageService – aggregates all My-page statistics for a single user.
-
-Updated 2025‑06‑25:
-• 오류 유형 한‑>영 매핑을 확정: Omission→생략, Insertion→첨가, Mispronunciation→왜곡, None→없음
-• detailedAnalysis.history 에 과거 점수 추이를 포함 – 동일 단어의 모든 연습 기록을 session.created_at 순서로 수집
-"""
 from __future__ import annotations
 
 import enum
@@ -14,7 +8,6 @@ from typing import Dict, List, Optional, DefaultDict
 from sqlalchemy import func
 
 from malppot.common.errors import UserNotFoundException
-# --- SQLAlchemy ORM models --------------------------------------------------
 from malppot.domain.models import (
     User,
     PracticeSession,
@@ -22,7 +15,6 @@ from malppot.domain.models import (
     JamoStatistic,
     PronunciationScore,
 )
-# --- Pydantic schemas -------------------------------------------------------
 from malppot.domain.mypage.schema import (
     MyPageResponse,
     MyPageUserData,
@@ -39,9 +31,6 @@ from malppot.domain.mypage.schema import (
 )
 from malppot.domain.recommendation.service import RecommendationService
 
-# ---------------------------------------------------------------------------
-# Helper maps & util functions
-# ---------------------------------------------------------------------------
 _ERR_ENG2KOR = {
     "Omission": "생략",
     "Insertion": "첨가",
@@ -69,7 +58,6 @@ def _kor_to_field(kor: str) -> str:
     return _KOR2FIELD[kor]
 
 
-# ---------------------------------------------------------------------------
 class MyPageService:
     def __init__(self, db, recommendation_service: RecommendationService):
         self.db_manager = db
@@ -235,31 +223,8 @@ class MyPageService:
                         errorTendency=et,
                     )
 
-                # rec = [
-                #     r.text
-                #     for r in (
-                #         db_session.query(
-                #             Word.text, func.avg(PronunciationScore.score).label("avg")
-                #         )
-                #         .join(PracticeWord, PracticeWord.word_idx == Word.word_idx)
-                #         .join(
-                #             PronunciationScore,
-                #             PronunciationScore.practice_word_idx == PracticeWord.practice_word_idx,
-                #         )
-                #         .filter(
-                #             PracticeWord.user_idx == user_idx,
-                #             PronunciationScore.jamo_char == phoneme,
-                #         )
-                #         .group_by(Word.text)
-                #         .order_by(func.avg(PronunciationScore.score))
-                #         .limit(4)
-                #         .all()
-                #     )
-                # ]
                 rec = self.recommendation_service.get_words(phoneme)
-
-                records = [d for d in detailed if d.phoneme == phoneme]
-
+                records = self._collect_word_records(db_session, user_idx, phoneme)
                 phoneme_detail[phoneme] = PhonemeAnalysis(
                     overallAccuracy=overall,
                     positionalAnalysis=pos_analysis,
@@ -280,15 +245,13 @@ class MyPageService:
             db_session.close()
 
     async def get_summary(self, user_idx: int) -> SummaryResponse:
-        s = self.db_manager.get_session()  # ─── 상단에 공통 상수 추가 ───────────────────────────────────────────
+        s = self.db_manager.get_session()
         CONSONANTS: set[str] = set("ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ")
-
         try:
             user = s.query(User).filter_by(user_idx=user_idx).first()
             if not user:
                 raise UserNotFoundException()
 
-            # ---------- 1) 사용자 기본 정보 ----------------------
             user_data = MyPageUserData(
                 userName=user.name or user.email,
                 profileImageUrl=user.profile_image_url,
@@ -300,7 +263,6 @@ class MyPageService:
                 ),
             )
 
-            # ---------- 2) 7일 그래프 ---------------------------
             today = datetime.utcnow().date()
             start = today - timedelta(days=6)
             rows = (
@@ -318,7 +280,6 @@ class MyPageService:
                 for i in range(7)
             ]
 
-            # ---------- 3) 자음별 평균 점수 ----------------------
             std, tense = "ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎ", "ㄲㄸㅃㅆㅉ"
             normal, strong = {c: 0.0 for c in std}, {c: 0.0 for c in tense}
 
@@ -327,7 +288,6 @@ class MyPageService:
                             .filter_by(user_idx=user_idx)
                             .all()
             ):
-                # ▶︎ 모음 걸러냄
                 if not st.attempt_count or st.jamo_char not in CONSONANTS:
                     continue
 
@@ -337,7 +297,6 @@ class MyPageService:
                 elif st.jamo_char in strong:
                     strong[st.jamo_char] = acc
 
-            # ---------- 4) 종합(에러 분포 etc.) ------------------
             comp = MyPageComprehensiveData(
                 errorDistribution=self._error_distribution(s, user_idx),
                 soundCategoryAccuracy=_sound_cat_acc({**normal, **strong}),
@@ -353,11 +312,9 @@ class MyPageService:
         finally:
             s.close()
 
-    async def get_phoneme_detail(self, user_idx: int,
-                                 phoneme: str) -> PhonemeDetailResponse:
+    async def get_phoneme_detail(self, user_idx: int, phoneme: str) -> PhonemeDetailResponse:
         s = self.db_manager.get_session()
         try:
-            # (1) overall 정확도
             stat: JamoStatistic | None = (
                 s.query(JamoStatistic)
                 .filter_by(user_idx=user_idx, jamo_char=phoneme)
@@ -365,7 +322,6 @@ class MyPageService:
             )
             overall = round((stat.total_score / stat.attempt_count), 2) if stat and stat.attempt_count else 0.0
 
-            # (2) 위치별 분석 + 오류 경향
             pos_rows = (
                 s.query(PronunciationScore.jamo_position,
                         func.avg(PronunciationScore.score),
@@ -379,14 +335,10 @@ class MyPageService:
                           PracticeWord.error_type)
                 .all()
             )
-            pos_scores = defaultdict(list)  # {"초성": [score, ...], ...}
+            pos_scores = defaultdict(list)
             for pos, avg, err, cnt in pos_rows:
-                # avg는 error_type별 평균이므로 cnt만큼 점수를 복원
-                # 실제로는 (원본 데이터면 score를 바로 모으는게 가장 좋음)
-                # 여기선 avg*cnt로 임시 복원 (실제점수 대신)
                 if avg is not None:
                     pos_scores[pos].extend([avg] * cnt)
-
             pos_avg = {}
             for pos, scores in pos_scores.items():
                 if scores:
@@ -409,10 +361,7 @@ class MyPageService:
                     errorTendency=et,
                 )
 
-            # (3) AI 추천 단어
             rec = self.recommendation_service.get_words(phoneme)
-
-            # (4) 상세 기록-history
             records = self._collect_word_records(s, user_idx, phoneme)
 
             return PhonemeDetailResponse(
@@ -428,10 +377,6 @@ class MyPageService:
             s.close()
 
     def _error_distribution(self, s, user_idx: int) -> MyPageErrorDistribution:
-        """
-        PracticeWord.error_type 비율을 계산해
-        MyPageErrorDistribution(pydantic) 객체로 돌려준다.
-        """
         rows = (
             s.query(PracticeWord.error_type, func.count())
             .filter(PracticeWord.user_idx == user_idx)
@@ -440,13 +385,11 @@ class MyPageService:
         )
         total = sum(c for _e, c in rows) or 1
 
-        # 한글 키 기준 %
         kor_dist = {"생략": 0, "첨가": 0, "왜곡": 0, "없음": 0}
         for err_enum, cnt in rows:
             kor = _err_enum_to_kor(err_enum)
             kor_dist[kor] = round(cnt / total * 100)
 
-        # pydantic 필드 순서는 영어 enum 이름 사용
         return MyPageErrorDistribution(
             Omission=kor_dist["생략"],
             Insertion=kor_dist["첨가"],
@@ -456,10 +399,6 @@ class MyPageService:
 
     @staticmethod
     def _get_initial_jamo(syllable: str) -> str:
-        """
-        한글 완성형 음절을 받아 초성(ㄱ·ㄲ·…·ㅎ)을 반환.
-        한글이 아니면 빈 문자열.
-        """
         code = ord(syllable)
         if 0xAC00 <= code <= 0xD7A3:
             index = (code - 0xAC00) // 588
@@ -469,76 +408,52 @@ class MyPageService:
     def _collect_word_records(
             self, s, user_idx: int, phoneme: str
     ) -> list[MyPageDetailedAnalysisItem]:
-        """
-        • **첫 글자 초성이 phoneme 인 단어만**
-        • **동일 단어는 1개 레코드** ⇒ 최근 연습 기준 accuracy, 나머지는 history
-        """
-        # 세션 → 날짜 매핑
+        from malppot.domain.models import Word  # 반드시 import
         session_dates = dict(
             s.query(PracticeSession.session_idx, PracticeSession.created_at)
             .filter(PracticeSession.user_idx == user_idx)
             .all()
         )
-
-        # word_text → (latest_score, error_type, [history_scores])
-        acc_map: dict[str, tuple[float, str, list[float]]] = {}
-
-        # phoneme 필터 + 첫글자 초성 필터
-        base_q = (
-            s.query(PracticeWord, PronunciationScore)
-            .join(PronunciationScore,
-                  PronunciationScore.practice_word_idx == PracticeWord.practice_word_idx)
+        pw_rows = (
+            s.query(
+                PracticeWord.word_idx,
+                Word.text,
+                PracticeWord.average_score,
+                PracticeWord.error_type,
+                PracticeWord.session_idx,
+                PracticeSession.created_at
+            )
+            .join(PracticeSession, PracticeWord.session_idx == PracticeSession.session_idx)
+            .join(Word, PracticeWord.word_idx == Word.word_idx)
             .filter(
                 PracticeWord.user_idx == user_idx,
-                PronunciationScore.jamo_char == phoneme,
+                PracticeWord.average_score.isnot(None),
             )
+            .order_by(Word.text, PracticeSession.created_at)
+            .all()
         )
-
-        for pw, ps in base_q.all():
-            word_txt = pw.word.text
-            if self._get_initial_jamo(word_txt[0]) != phoneme:  # ▶︎ 초성 필터
-                continue
-
-            # history 에 넣기 위해 점수 모으기
-            created_at = session_dates.get(pw.session_idx)
-            if created_at is None:  # 방어
-                continue
-
-            latest_score = round(float(ps.score), 2)
-            error_type = _err_enum_to_kor(pw.error_type)
-
-            if word_txt not in acc_map:
-                acc_map[word_txt] = (latest_score, error_type, [latest_score])
-            else:
-                # 기록 누적 (정렬은 후에)
-                acc_map[word_txt][2].append(latest_score)
-                # 더 최근 연습이면 최신-점수/오류 교체
-                prev_latest_date = max(session_dates.get(r.session_idx)
-                                       for r, _ in base_q
-                                       if r.word.text == word_txt)
-                if created_at and created_at >= prev_latest_date:
-                    acc_map[word_txt] = (latest_score, error_type, acc_map[word_txt][2])
-
-        # 날짜 순으로 history 정렬
+        from collections import defaultdict
+        word_map = defaultdict(list)
+        for word_idx, word_txt, avg_score, error_type, session_idx, created_at in pw_rows:
+            if self._get_initial_jamo(word_txt[0]) == phoneme:
+                word_map[word_txt].append((created_at, avg_score, error_type))
         result: list[MyPageDetailedAnalysisItem] = []
-        for word, (latest, err, hist) in acc_map.items():
-            hist_sorted = sorted(hist)  # 이미 최신이 맨 끝이므로 간단 정렬
+        for word_txt, items in word_map.items():
+            items_sorted = sorted(items, key=lambda x: x[0])
+            history_scores = [round(float(avg), 2) for _, avg, _ in items_sorted][-7:]
+            _, latest_score, latest_error = items_sorted[-1]
             result.append(
                 MyPageDetailedAnalysisItem(
-                    id=f"{phoneme}-{word}",  # unique id
-                    word=word,
+                    id=f"{phoneme}-{word_txt}",
+                    word=word_txt,
                     phoneme=phoneme,
-                    accuracy=latest,
-                    mainErrorType=err,
-                    history=hist_sorted,
+                    accuracy=round(float(latest_score), 2),
+                    mainErrorType=_err_enum_to_kor(latest_error),
+                    history=history_scores
                 )
             )
         return result
 
-
-# helpers
-# ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
 
 def _sound_cat_acc(all_acc: Dict[str, float]) -> Dict[str, float]:
     cat = {
