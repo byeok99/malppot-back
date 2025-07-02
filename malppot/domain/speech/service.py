@@ -273,14 +273,23 @@ class SpeechService:
         unique_syllable = extract_unique_syllables(reference_text)
         await self._populate_syllable_gpt_tips(unique_syllable)
         parsed, assessment_result = self.run_azure_evaluation(reference_text, audio_path)
+
         word_phoneme_scores = self.parse_evaluation_result(parsed)
         feedback = self.map_to_feedback(word_phoneme_scores)
         original_words = original_text.split()
         word_feedbacks = self.transform_pronunciation_data(word_phoneme_scores, original_words)
 
+        if word_feedbacks:
+            avg_score = round(
+                sum(w.get("average_score", 0.0) for w in word_feedbacks) / len(word_feedbacks),
+                2
+            )
+        else:
+            avg_score = 0.0
+
         return {
             "reference_text": reference_text,
-            "accuracy_score": assessment_result.accuracy_score,
+            "accuracy_score": avg_score,
             "fluency_score": assessment_result.fluency_score,
             "completeness_score": assessment_result.completeness_score,
             "feedback": feedback,
@@ -320,27 +329,34 @@ class SpeechService:
             for word in parsed_json["NBest"][0]["Words"]:
                 word_text = word.get("Word", "")
                 phonemes = word.get("Phonemes", [])
-                errtype = word.get("PronunciationAssessment", {}).get("ErrorType", "None")
-                scores = [p.get("PronunciationAssessment", {}).get("AccuracyScore") for p in phonemes if
-                          p.get("PronunciationAssessment")]
-                scores = [s for s in scores if s is not None]
-                word_scores.append((word_text, phonemes, scores, errtype))
+                word_assessment = word.get("PronunciationAssessment", {})
+                word_score = word_assessment.get("AccuracyScore")  # ⬅️ 진짜 단어 점수!
+                errtype = word_assessment.get("ErrorType", "None")
+                phoneme_scores = [
+                    p.get("PronunciationAssessment", {}).get("AccuracyScore")
+                    for p in phonemes if p.get("PronunciationAssessment")
+                ]
+                phoneme_scores = [s for s in phoneme_scores if s is not None]
+                word_scores.append({
+                    "word": word_text,
+                    "word_score": word_score,
+                    "phonemes": phonemes,
+                    "phoneme_scores": phoneme_scores,
+                    "errtype": errtype
+                })
         except Exception as e:
             print(f"[Parse Error]: {e}")
         return word_scores
 
     def map_to_feedback(self, word_phoneme_scores: list):
         adjusted_word_phoneme_scores = [
-            (word_text, scores_list, errtype_str)
-            for word_text, azure_phonemes_list, scores_list, errtype_str in word_phoneme_scores
+            (entry["word"], entry["phoneme_scores"], entry["errtype"])
+            for entry in word_phoneme_scores
         ]
         feedback = map_jamos_with_scores(adjusted_word_phoneme_scores)
-
-        for f_word_feedback in feedback:
-            scores_for_avg = [s["score"] for s in f_word_feedback["scores"] if "score" in s]
-            f_word_feedback["average_score"] = round(sum(scores_for_avg) / len(scores_for_avg),
-                                                     2) if scores_for_avg else 0.0
-
+        # 각 feedback["average_score"] = entry["word_score"]로 직접 대입
+        for entry, fb in zip(word_phoneme_scores, feedback):
+            fb["average_score"] = entry["word_score"] if entry.get("word_score") is not None else 0.0
         return feedback
 
     def save_to_practice_tables(self, user_idx: int, original_text: str, result: dict) -> str:
@@ -515,16 +531,21 @@ class SpeechService:
             session.rollback()
             raise
 
-    def transform_pronunciation_data(self, raw_data: List, original_words: List) -> List[Dict]:
+    def transform_pronunciation_data(self, raw_data: List[dict], original_words: List[str]) -> List[Dict]:
         session: Session = self.db.get_session()
         result = []
-
         try:
-            for (word, phonemes, scores, error_type), original_word in zip(raw_data, original_words):
-                avg_score = round(sum(scores) / len(scores), 2) if scores else 0.0
+            for idx, original_word in enumerate(original_words):
+                if idx < len(raw_data):
+                    entry = raw_data[idx]
+                    avg_score = entry.get("word_score", 0.0)
+                    errtype = entry.get("errtype", "None")
+                else:
+                    # 인식결과가 부족하면 0점 처리 (혹은 None)
+                    avg_score = 0.0
+                    errtype = "None"
                 syllables = []
-
-                for syllable_char in extract_unique_syllables(word):
+                for syllable_char in extract_unique_syllables(original_word):
                     syllable_obj = session.query(Syllable).filter_by(syllable_char=syllable_char).first()
                     syllables.append({
                         "char": syllable_char,
@@ -534,15 +555,13 @@ class SpeechService:
                             syllable_obj.lips_url) if syllable_obj and syllable_obj.lips_url else None,
                         "gpt_tip": syllable_obj.gpt_tip if syllable_obj else ""
                     })
-
                 result.append({
                     "word": original_word,
                     "average_score": avg_score,
-                    "errtype": error_type,
+                    "errtype": errtype,
                     "syllables": syllables,
                     "video_url": None
                 })
-
             return result
         finally:
             session.close()
@@ -634,7 +653,7 @@ class SpeechService:
             session.close()
 
     def test(self):
-        results = extract_lip_movement_sequence("밥을 먹자!")
+        results = extract_lip_movement_sequence("배")
         all_jobs = []
         for entry in results:
             seq = entry["sequence"]
