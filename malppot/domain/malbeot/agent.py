@@ -1,8 +1,10 @@
-import json
 import asyncio
-import websockets
+import json
+import re
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, AsyncIterator, Any, Callable, Coroutine
+
+import websockets
 from langchain_core._api import beta
 from pydantic import BaseModel
 
@@ -20,6 +22,12 @@ EVENTS_TO_IGNORE = {
     "response.done",
     "response.output_item.done",
 }
+
+
+def contains_hangul_or_digit(text: str) -> bool:
+    """한글 또는 숫자가 1개 이상 포함되어 있으면 True 반환"""
+    return bool(re.search(r"[가-힣0-9]", text or ""))
+
 
 @asynccontextmanager
 async def connect(*, api_key: str, model: str, url: str) -> AsyncGenerator[
@@ -51,6 +59,7 @@ async def connect(*, api_key: str, model: str, url: str) -> AsyncGenerator[
     finally:
         await websocket.close()
 
+
 async def amerge(**streams: AsyncIterator[Any]) -> AsyncIterator[tuple[str, Any]]:
     nexts: dict[asyncio.Task, str] = {
         asyncio.create_task(anext(stream)): key for key, stream in streams.items()
@@ -70,6 +79,7 @@ async def amerge(**streams: AsyncIterator[Any]) -> AsyncIterator[tuple[str, Any]
                     task.cancel()
                 raise e
 
+
 @beta()
 class OpenAIVoiceReactAgent(BaseModel):
     model: str
@@ -78,10 +88,10 @@ class OpenAIVoiceReactAgent(BaseModel):
     url: str
 
     async def aconnect(
-        self,
-        input_stream: AsyncIterator[str],
-        send_output_chunk: Callable[[str], Coroutine[Any, Any, None]],
-    # ) -> None: # str
+            self,
+            input_stream: AsyncIterator[str],
+            send_output_chunk: Callable[[str], Coroutine[Any, Any, None]],
+            # ) -> None: # str
     ) -> AsyncGenerator[dict[str, str], None]:
         """
         Connect to the OpenAI API and send and receive messages.
@@ -93,10 +103,10 @@ class OpenAIVoiceReactAgent(BaseModel):
 
         """
         async with connect(
-            model=self.model, api_key=self.api_key, url=self.url
+                model=self.model, api_key=self.api_key, url=self.url
         ) as (
-            model_send,
-            model_receive_stream,
+                model_send,
+                model_receive_stream,
         ):
             await model_send(
                 {
@@ -111,8 +121,8 @@ class OpenAIVoiceReactAgent(BaseModel):
                 }
             )
             async for stream_key, data_raw in amerge(
-                input_mic=input_stream,
-                output_speaker=model_receive_stream,
+                    input_mic=input_stream,
+                    output_speaker=model_receive_stream,
             ):
                 try:
                     data = (
@@ -133,9 +143,11 @@ class OpenAIVoiceReactAgent(BaseModel):
                     elif t == "error":
                         print("error:", data)
                     elif t == "conversation.item.input_audio_transcription.completed":
-                        data["speaker"] = "user"
-                        await send_output_chunk(json.dumps(data))
-                        yield {"user": data["transcript"]}
+                        transcript = data.get("transcript")
+                        if transcript and transcript.strip() and contains_hangul_or_digit(transcript):
+                            data["speaker"] = "user"
+                            await send_output_chunk(json.dumps(data))
+                            yield {"user": transcript}
                     elif t == "response.audio_transcript.done":
                         data["speaker"] = "model"
                         await send_output_chunk(json.dumps(data))
