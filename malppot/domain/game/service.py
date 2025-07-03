@@ -34,8 +34,15 @@ class GameService:
 
         words_from_reco: List[str] = []
         for word_list in reco_rows:
+            # word_list는 [{ "word": "뜻밖", "sentence": ... }, ...] 또는 문자열(JSON)일 수 있음
+            if isinstance(word_list, str):
+                import json
+                word_list = json.loads(word_list)
+            # word_list가 리스트일 때만 처리
             if isinstance(word_list, list):
-                words_from_reco.extend(word_list)
+                for item in word_list:
+                    if isinstance(item, dict) and 'word' in item:
+                        words_from_reco.append(item['word'])
 
         all_words: Set[str] = set(words_from_db) | set(words_from_reco)
         session.close()
