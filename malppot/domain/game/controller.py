@@ -23,13 +23,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/test")
+@router.get("/test/{jamo}")
 async def test(
-        recommendation_service: RecommendationService = Depends(get_recommendation_service_from_di)
+        jamo: str,
+        recommendation_service: RecommendationService = Depends(get_recommendation_service_from_di),
 ):
     await recommendation_service.save_recommendation_words(
-        ['ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ', 'ㅂ', '', 'ㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ', 'ㄲ', 'ㄸ', 'ㅃ', 'ㅆ', 'ㅉ', ]
+        # ['ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ', 'ㅂ', '', 'ㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ', 'ㄲ', 'ㄸ', 'ㅃ', 'ㅆ', 'ㅉ', ]
         # ['ㄲ', 'ㄸ', 'ㅃ', 'ㅆ', 'ㅉ']
+        jamo
     )
 
 

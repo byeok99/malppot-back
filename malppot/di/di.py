@@ -61,8 +61,9 @@ class DI(containers.DeclarativeContainer):
         _RecommendationContainer,
         db=db,
         gpt_service=gpt_service,
+        speech_service=speech.service,
     )
-    
+
     mypage = providers.Container(
         _MyPageContainer,
         db=db,

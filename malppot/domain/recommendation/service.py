@@ -7,35 +7,39 @@ from sqlalchemy.orm import Session
 
 from malppot.common.gpt_service import GPTService
 from malppot.domain.models import RecommendationsWords
+from malppot.domain.speech.service import SpeechService
 
 
 class RecommendationService:
-    def __init__(self, db, gpt_service: GPTService):
+    def __init__(self, db, gpt_service: GPTService, speech_service: SpeechService):
         self.db = db
         self.gpt_service = gpt_service
+        self.speech_service = speech_service
 
     # 추천 단어 생성해서 저장하는 코드
-    async def save_recommendation_words(self, jamos: list[str]) -> None:
+    async def save_recommendation_words(self, jamo: str) -> None:
         session: Session = self.db.get_session()
 
         try:
-            for jamo in jamos:
-                words: list[str] = await self.gpt_service.ask_recommendation_word(jamo, 4)
+            words: list[dict[str, str]] = await self.gpt_service.ask_recommendation_word(jamo, 4)
+            print(words)
+            for word in words:
+                await self.speech_service.convert(word.get('sentence'))
 
-                # 이미 존재하면 덮어쓰고, 없으면 새로 삽입
-                existing = session.query(RecommendationsWords).filter_by(jamo_initial=jamo).first()
-                if existing:
-                    existing.words = words
-                    existing.created_at = datetime.datetime.utcnow()
-                else:
-                    session.add(
-                        RecommendationsWords(
-                            id=str(uuid4()),
-                            jamo_initial=jamo,
-                            words=words,
-                            created_at=datetime.datetime.utcnow(),
-                        )
+            # 이미 존재하면 덮어쓰고, 없으면 새로 삽입
+            existing = session.query(RecommendationsWords).filter_by(jamo_initial=jamo).first()
+            if existing:
+                existing.words = words
+                existing.created_at = datetime.datetime.utcnow()
+            else:
+                session.add(
+                    RecommendationsWords(
+                        id=str(uuid4()),
+                        jamo_initial=jamo,
+                        words=words,
+                        created_at=datetime.datetime.utcnow(),
                     )
+                )
             session.commit()
         except Exception:
             session.rollback()

@@ -16,28 +16,46 @@ def extract_unique_syllables(phonetic_string: str) -> List[str]:
     return list(unique_syllables)
 
 
+from typing import Any, List
 import json
-from typing import List, Any
 
 
-def extract_word_list(text: str) -> List[str]:
-    """GPT 응답 문자열 → 단어 배열(문자열 리스트) 추출."""
+def extract_word_list(text: str) -> List[Any]:
+    """GPT 응답 문자열 → 단어 배열(문자열 리스트 또는 dict 리스트) 추출."""
     # 1) JSON 파싱
     data: Any = json.loads(text)
 
-    # 2) 📌 케이스 A: 최상위가 배열
+    # 2) 📌 케이스 A: 최상위가 'string' 배열 (이전 방식 호환)
     if isinstance(data, list) and all(isinstance(x, str) for x in data):
         return data
 
-    # 3) 📌 케이스 B: 객체 → 값 중 첫 'string 리스트'
-    if isinstance(data, dict):
-        for value in data.values():
-            if isinstance(value, list) and all(isinstance(x, str) for x in value):
-                return value
+    # 3) 📌 케이스 B: 최상위가 'dict' 배열 (단어/문장 구조)
+    if isinstance(data, list) and all(
+            isinstance(x, dict) and "word" in x and "sentence" in x for x in data
+    ):
+        return data
 
-    # 4) 📌 케이스 C: 중첩 구조 (dict → dict → list)
+    # 4) 📌 케이스 C: dict 내부에 'words' key
+    if isinstance(data, dict) and "words" in data:
+        words = data["words"]
+        # string 배열
+        if isinstance(words, list) and all(isinstance(x, str) for x in words):
+            return words
+        # dict 배열 (단어/문장)
+        if isinstance(words, list) and all(
+                isinstance(x, dict) and "word" in x and "sentence" in x for x in words
+        ):
+            return words
+
+    # 5) 📌 케이스 D: 중첩 구조 (dfs 탐색)
     def dfs(obj):
+        # string 배열
         if isinstance(obj, list) and all(isinstance(x, str) for x in obj):
+            return obj
+        # dict 배열
+        if isinstance(obj, list) and all(
+                isinstance(x, dict) and "word" in x and "sentence" in x for x in obj
+        ):
             return obj
         if isinstance(obj, dict):
             for v in obj.values():
@@ -50,5 +68,5 @@ def extract_word_list(text: str) -> List[str]:
     if maybe:
         return maybe
 
-    # 5) 전부 실패 → 예외
-    raise ValueError(f"단어 배열을 찾지 못함: {text[:120]}…")
+    # 6) 실패
+    raise ValueError(f"단어 배열(list[str] 또는 list[dict])을 찾지 못함: {text[:120]}…")
