@@ -86,8 +86,6 @@ async def login(
         samesite="Strict"
     )
 
-    speech_service.update_user_practice_summary(user.user_idx)
-
     return {
         "access_token": access_token,
         "user_info": {
