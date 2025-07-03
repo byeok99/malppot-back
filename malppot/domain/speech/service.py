@@ -279,11 +279,13 @@ class SpeechService:
         original_words = original_text.split()
         word_feedbacks = self.transform_pronunciation_data(word_phoneme_scores, original_words)
 
+        print(word_feedbacks)
         if word_feedbacks:
-            avg_score = round(
-                sum(w.get("average_score", 0.0) for w in word_feedbacks) / len(word_feedbacks),
-                2
-            )
+            scores = [
+                w.get("average_score") if w.get("average_score") is not None else 0.0
+                for w in word_feedbacks
+            ]
+            avg_score = sum(scores) / (len(scores) or 1)
         else:
             avg_score = 0.0
 
