@@ -68,7 +68,7 @@ class PhonemePositionAnalysis(BaseModel):
 class PhonemeAnalysis(BaseModel):
     overallAccuracy: float
     positionalAnalysis: Dict[str, Optional[PhonemePositionAnalysis]]  # initial/final …
-    recommendedWords: List[str]
+    recommendedWords: List[dict[str, str]]
     allRecords: List[MyPageDetailedAnalysisItem]
 
 

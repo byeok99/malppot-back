@@ -1,6 +1,6 @@
 import datetime
 import json
-from typing import List
+from typing import List, Dict
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
@@ -47,9 +47,9 @@ class RecommendationService:
         finally:
             session.close()
 
-    def get_words(self, jamo_initial: str) -> List[str]:
+    def get_words(self, jamo_initial: str) -> List[Dict[str, str]]:
         """
-        해당 초성의 단어 리스트를 반환한다.
+        해당 초성의 단어+문장 리스트를 반환한다.
         레코드가 없으면 [] 리턴.
         """
         db: Session = self.db.get_session()
@@ -62,6 +62,15 @@ class RecommendationService:
             if not row:
                 return []
             words = row[0]  # .words 컬럼만 선택했으므로 튜플
-            return words if isinstance(words, list) else json.loads(words)
+            # words가 이미 파싱된 list[dict]면 그대로, 아니면 json 파싱
+            result = words if isinstance(words, list) else json.loads(words)
+            # 안전을 위해 타입 체크
+            print("----------------------")
+            print(result)
+            print("----------------------")
+            if isinstance(result, list) and all(
+                    isinstance(x, dict) and 'word' in x and 'sentence' in x for x in result):
+                return result
+            raise ValueError("데이터 포맷 오류: 기대한 리스트[dict]가 아님")
         finally:
             db.close()
