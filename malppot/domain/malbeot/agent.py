@@ -1,6 +1,5 @@
 import asyncio
 import json
-import re
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, AsyncIterator, Any, Callable, Coroutine
 
@@ -22,11 +21,6 @@ EVENTS_TO_IGNORE = {
     "response.done",
     "response.output_item.done",
 }
-
-
-def contains_hangul_or_digit(text: str) -> bool:
-    """한글 또는 숫자가 1개 이상 포함되어 있으면 True 반환"""
-    return bool(re.search(r"[가-힣0-9]", text or ""))
 
 
 @asynccontextmanager
@@ -116,6 +110,14 @@ class OpenAIVoiceReactAgent(BaseModel):
                         "voice": "echo",
                         "input_audio_transcription": {
                             "model": "whisper-1",
+                        },
+                        "turn_detection": {
+                            "type": "server_vad",
+                            "threshold": 0.7,
+                            "prefix_padding_ms": 300,
+                            "silence_duration_ms": 500,
+                            "create_response": True,
+                            "interrupt_response": True,
                         }
                     },
                 }
@@ -143,11 +145,9 @@ class OpenAIVoiceReactAgent(BaseModel):
                     elif t == "error":
                         print("error:", data)
                     elif t == "conversation.item.input_audio_transcription.completed":
-                        transcript = data.get("transcript")
-                        if transcript and transcript.strip() and contains_hangul_or_digit(transcript):
-                            data["speaker"] = "user"
-                            await send_output_chunk(json.dumps(data))
-                            yield {"user": transcript}
+                        data["speaker"] = "user"
+                        await send_output_chunk(json.dumps(data))
+                        yield {"user": data["transcript"]}
                     elif t == "response.audio_transcript.done":
                         data["speaker"] = "model"
                         await send_output_chunk(json.dumps(data))
