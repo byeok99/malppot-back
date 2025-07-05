@@ -46,22 +46,28 @@ class SpeechService:
 
     async def convert(self, input_text: str):
         converted_text = KoG2Padvanced(input_text)
+
         unique_syllable = extract_unique_syllables(converted_text)
-
-        asyncio.create_task(self._populate_syllable_tongue_videos(unique_syllable))
-
         lips_movement = extract_lip_movement_sequence(converted_text)
-        asyncio.create_task(self._populate_syllable_lips_videos(lips_movement))
+        input_text = input_text.replace(" ", "")
+        for a, b in zip(lips_movement, input_text):
+            print(a, b)
+
+        asyncio.create_task(self._populate_syllable_tongue_videos(unique_syllable, input_text))
+        asyncio.create_task(self._populate_syllable_lips_videos(lips_movement, input_text))
 
         return {"converted_text": converted_text}
 
-    async def _populate_syllable_tongue_videos(self, syllable_chars: Iterable[str]) -> None:
+    # 변환된 값에 데이터가 저장되고 있음. 갔 -> 가 에 저장되어서 갔에는 데이터가 안들어감.
+    async def _populate_syllable_tongue_videos(self, syllable_chars: Iterable[str], input_text: str) -> None:
         session: Session = self.db.get_session()
         try:
+            syllable_chars = [ori_ch for ori_ch in input_text]
             existing_rows = session.query(Syllable).filter(Syllable.syllable_char.in_(syllable_chars)).all()
             existing_map = {row.syllable_char: row for row in existing_rows}
-            for ch in syllable_chars:
-                row = existing_map.get(ch)
+            
+            for ch, ori_ch in zip(syllable_chars, input_text):
+                row = existing_map.get(ori_ch)
                 urls = []
                 if row and row.tongue_url:
                     try:
@@ -83,7 +89,7 @@ class SpeechService:
                 else:
                     session.add(
                         Syllable(
-                            syllable_char=ch,
+                            syllable_char=ori_ch,
                             tongue_url=json.dumps(video_urls, ensure_ascii=False)
                         )
                     )
@@ -91,16 +97,17 @@ class SpeechService:
         finally:
             session.close()
 
-    async def _populate_syllable_lips_videos(self, lips_movement: Iterable[dict]) -> None:
+    async def _populate_syllable_lips_videos(self, lips_movement: Iterable[dict], input_text: str) -> None:
         session: Session = self.db.get_session()
         try:
-            syllable_chars = [entry["letter"] for entry in lips_movement]
+            syllable_chars = [ori_ch for ori_ch in input_text]
             existing_rows = session.query(Syllable).filter(Syllable.syllable_char.in_(syllable_chars)).all()
             existing_map = {row.syllable_char: row for row in existing_rows}
-            for entry in lips_movement:
+
+            for entry, ori_ch in zip(lips_movement, input_text):
                 ch = entry["letter"]
                 seq = entry["sequence"]
-                row = existing_map.get(ch)
+                row = existing_map.get(ori_ch)
                 urls = []
                 if row and row.lips_url:
                     try:
@@ -126,8 +133,9 @@ class SpeechService:
                 if row:
                     row.lips_url = json.dumps(video_urls, ensure_ascii=False)  # update
                 else:
+
                     session.add(Syllable(
-                        syllable_char=ch,
+                        syllable_char=ori_ch,
                         lips_url=json.dumps(video_urls, ensure_ascii=False)
                     ))
             session.commit()
