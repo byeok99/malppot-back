@@ -81,7 +81,7 @@ class VideoLog(Base):
     created_at = Column(DateTime, default=func.now())
     expires_at = Column(DateTime, nullable=True)
 
-    words = relationship("Word", backref="video_log_backref")
+    words = relationship("Word", overlaps="representative_video")
 
 
 class PracticeSession(Base):
