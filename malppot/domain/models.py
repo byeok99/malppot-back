@@ -1,8 +1,10 @@
 import enum
 from uuid import uuid4
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, Enum, ForeignKey, Text
-from sqlalchemy.dialects.mysql import CHAR, INTEGER, JSON, TINYINT, DECIMAL
+from sqlalchemy import (
+    Column, Integer, String, Float, DateTime, Enum, ForeignKey, Text, Table
+)
+from sqlalchemy.dialects.mysql import CHAR, INTEGER, JSON, TINYINT, DECIMAL, BIGINT
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 
@@ -31,6 +33,13 @@ class VideoLogStatus(str, enum.Enum):
 class PracticeWordPosition(str, enum.Enum):
     CHOSUNG = "초성"
     JONGSUNG = "종성"
+
+
+stage_words_link = Table(
+    'stage_words_link', Base.metadata,
+    Column('stage_id', Integer, ForeignKey('stage_info.stage_id', ondelete="CASCADE"), primary_key=True),
+    Column('game_word_id', BIGINT(unsigned=True), ForeignKey('game_words.id', ondelete="CASCADE"), primary_key=True)
+)
 
 
 class User(Base):
@@ -114,9 +123,9 @@ class PracticeWord(Base):
             'Insertion',
             'Mispronunciation',
             'None',
-            name='practiceworderrortype'  # 데이터베이스에 생성될 ENUM 타입 이름
+            name='practiceworderrortype'
         ),
-        default='None'  # 기본값도 문자열로 일치
+        default='None'
     )
     user_idx = Column(INTEGER(unsigned=True), ForeignKey('users.user_idx'))
 
@@ -136,7 +145,7 @@ class PronunciationScore(Base):
         Enum(
             "초성",
             "종성"
-        ), nullable=True)  # 이 컬럼은 이제 초성/종성만 저장
+        ), nullable=True)
     practice_word = relationship("PracticeWord")
 
 
@@ -162,39 +171,38 @@ class RecommendationsWords(Base):
     __tablename__ = 'recommendation_words'
 
     id = Column(CHAR(36), primary_key=True, default=lambda: str(uuid4()))
-    jamo_initial = Column(String(10), nullable=False, index=True)  # ex) 'ㅂ'
-    words = Column(JSON, nullable=False)  # ["바다","버섯",...]
+    jamo_initial = Column(String(10), nullable=False, index=True)
+    words = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=func.now(), index=True)
 
 
-class StageWords(Base):
-    __tablename__ = "stage_words"
-
-    stage_id = Column(Integer, primary_key=True, autoincrement=False)
+class StageInfo(Base):
+    __tablename__ = "stage_info"
+    stage_id = Column(Integer, primary_key=True)
     level = Column(Integer, nullable=False)
     difficulty = Column(Enum(Difficulty), nullable=False)
     goal_value = Column(Integer, nullable=False)
     speed = Column(DECIMAL(3, 1), nullable=False)
     interval_ms = Column(Integer, nullable=False)
     lives = Column(Integer, default=0)
-    words = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=func.now())
 
-    progresses = relationship("UserStageProgress", back_populates="stage", cascade="all, delete-orphan")
-
-    def __repr__(self):
-        return f"<StageWords id={self.stage_id} diff={self.difficulty}>"
+    words = relationship(
+        "GameWord",
+        secondary=stage_words_link,
+        back_populates="stages"
+    )
 
 
 class UserStageProgress(Base):
     __tablename__ = "user_stage_progress"
 
     user_idx = Column(INTEGER(unsigned=True), ForeignKey("users.user_idx"), primary_key=True)
-    stage_id = Column(Integer, ForeignKey("stage_words.stage_id"), primary_key=True)
+    stage_id = Column(Integer, ForeignKey("stage_info.stage_id"), primary_key=True)
     cleared = Column(TINYINT(1), default=0)
     cleared_at = Column(DateTime, nullable=True)
 
-    stage = relationship("StageWords", back_populates="progresses")
+    stage = relationship("StageInfo", backref="progresses")
     user = relationship("User", backref="stage_progress")
 
     def __repr__(self):
@@ -214,10 +222,14 @@ class EndlessScores(Base):
         return f"<EndlessScores user={self.user_idx} score={self.best_score}>"
 
 
-class EndlessWord(Base):
-    __tablename__ = "endless_words"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    word = Column(String(255), nullable=False)
+class GameWord(Base):
+    __tablename__ = "game_words"
+    id = Column(BIGINT(unsigned=True), primary_key=True, autoincrement=True)  # BIGINT로 변경
+    word = Column(String(255), nullable=False, unique=True)
     image_url = Column(String(1024))
     created_at = Column(DateTime, default=func.now())
+    stages = relationship(
+        "StageInfo",
+        secondary="stage_words_link",
+        back_populates="words"
+    )

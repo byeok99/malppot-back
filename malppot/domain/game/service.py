@@ -1,21 +1,18 @@
 from datetime import datetime
-from typing import List, Set
+from typing import List, Tuple
 
-from sqlalchemy import select, distinct, func
+from sqlalchemy import select, func
 from sqlalchemy.dialects.mysql import insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from malppot.common.errors import CustomException
 from malppot.common.gpt_service import GPTService
 from malppot.domain.game.schema import StageData
 from malppot.domain.models import (
-    Word,
-    RecommendationsWords,
-    PracticeSession,
-    PracticeWord,
     UserStageProgress,
-    StageWords,
-    EndlessScores
+    EndlessScores,
+    StageInfo,
+    GameWord
 )
 
 
@@ -24,50 +21,16 @@ class GameService:
         self.db = db
         self.gpt_service = gpt_service
 
-    async def get_endless_word_pool(self, user_idx: int) -> List[str]:
+    async def get_endless_word_pool(self) -> List[Tuple[str, str]]:
         session: Session = self.db.get_session()
 
-        words_from_db: List[str] = await self._get_user_practiced_words(user_idx)
-
-        stmt_reco = select(RecommendationsWords.words)
-        reco_rows = session.scalars(stmt_reco).all()
-
-        words_from_reco: List[str] = []
-        for word_list in reco_rows:
-            # word_list는 [{ "word": "뜻밖", "sentence": ... }, ...] 또는 문자열(JSON)일 수 있음
-            if isinstance(word_list, str):
-                import json
-                word_list = json.loads(word_list)
-            # word_list가 리스트일 때만 처리
-            if isinstance(word_list, list):
-                for item in word_list:
-                    if isinstance(item, dict) and 'word' in item:
-                        words_from_reco.append(item['word'])
-
-        all_words: Set[str] = set(words_from_db) | set(words_from_reco)
+        stmt_reco = select(GameWord.word, GameWord.image_url)
+        result = session.execute(stmt_reco)
+        reco_rows = result.all()
+        tuple_rows = [tuple(row) for row in reco_rows]
         session.close()
-        return list(all_words)
 
-    async def _get_user_practiced_words(
-            self,
-            user_idx: int,
-            limit: int = 200
-    ) -> List[str]:
-        session: Session = self.db.get_session()
-
-        stmt = (
-            select(distinct(Word.text))
-            .join(PracticeWord, PracticeWord.word_idx == Word.word_idx)
-            .join(PracticeSession, PracticeSession.session_idx == PracticeWord.session_idx)
-            .where(
-                PracticeSession.user_idx == user_idx,
-                PracticeWord.word_idx.is_not(None)
-            )
-            .order_by(PracticeSession.created_at.desc())
-            .limit(limit)
-        )
-        session.close()
-        return list(session.scalars(stmt).all())
+        return tuple_rows
 
     async def get_highest_cleared_stage(self, user_idx: int) -> int:
         session: Session = self.db.get_session()
@@ -82,13 +45,12 @@ class GameService:
 
         highest: int | None = session.scalar(stmt)
         session.close()
-        print(highest)
         return highest or 0
 
     async def get_all_stages_data(self) -> list[StageData]:
         session: Session = self.db.get_session()
-        stmt = select(StageWords)
-        rows = session.scalars(stmt).all()
+        stmt = select(StageInfo).options(joinedload(StageInfo.words))
+        rows = session.scalars(stmt).unique().all()
         session.close()
         return [
             StageData(
@@ -99,7 +61,10 @@ class GameService:
                 speed=row.speed,
                 interval=row.interval_ms,
                 lives=row.lives,
-                words=row.words,
+                words=[
+                    {"word": gw.word, "image_url": gw.image_url}
+                    for gw in row.words
+                ],
             )
             for row in rows
         ]

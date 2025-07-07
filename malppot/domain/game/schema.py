@@ -1,5 +1,4 @@
 import enum
-from typing import List
 
 from pydantic import BaseModel, condecimal
 
@@ -18,7 +17,7 @@ class StageData(BaseModel):
     speed: condecimal(max_digits=3, decimal_places=1)  # 0.0 ~ 9.9
     interval: int
     lives: int
-    words: List[str]
+    words: list[dict[str, str]]
 
 
 class SaveBestScoreRequest(BaseModel):
