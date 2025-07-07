@@ -212,3 +212,12 @@ class EndlessScores(Base):
 
     def __repr__(self):
         return f"<EndlessScores user={self.user_idx} score={self.best_score}>"
+
+
+class EndlessWord(Base):
+    __tablename__ = "endless_words"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    word = Column(String(255), nullable=False)
+    image_url = Column(String(1024))
+    created_at = Column(DateTime, default=func.now())
