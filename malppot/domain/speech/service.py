@@ -287,7 +287,6 @@ class SpeechService:
         original_words = original_text.split()
         word_feedbacks = self.transform_pronunciation_data(word_phoneme_scores, original_words)
 
-        print(word_feedbacks)
         if word_feedbacks:
             scores = [
                 w.get("average_score") if w.get("average_score") is not None else 0.0
@@ -384,10 +383,12 @@ class SpeechService:
 
             original_words = original_text.strip().split()
             all_scores = []
-            for i, word_info_dict in enumerate(result["feedback"]):
+            for (i, word_info_dict), word in zip(enumerate(result["feedback"]), original_words):
+
                 true_word = original_words[i] if i < len(original_words) else word_info_dict["word"]
                 word_idx = self.get_or_create_word_idx(session, true_word)
-                practice_word = self.create_practice_word(session, new_session, word_idx, word_info_dict, user_idx)
+                practice_word = self.create_practice_word(session, new_session, word_idx, word_info_dict, word,
+                                                          user_idx)
 
                 jamo_scores_for_db = []
 
@@ -436,12 +437,13 @@ class SpeechService:
         db_session.add(new_word)
         return new_word.word_idx
 
-    def create_practice_word(self, db_session, session: PracticeSession, word_idx: str, word_info: dict, user_idx=None):
+    def create_practice_word(self, db_session, session: PracticeSession, word_idx: str, word_info: dict, ori_word: str,
+                             user_idx=None):
         practice_word = PracticeWord(
             practice_word_idx=str(uuid4()),
             session_idx=session.session_idx,
             word_idx=word_idx,
-            spoken_text=word_info["word"],
+            spoken_text=ori_word,
             average_score=word_info.get("average_score", 0.0),
             error_type=word_info.get("errtype", "None"),
             user_idx=user_idx
