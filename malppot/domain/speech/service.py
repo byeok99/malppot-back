@@ -65,7 +65,7 @@ class SpeechService:
             syllable_chars = [ori_ch for ori_ch in input_text]
             existing_rows = session.query(Syllable).filter(Syllable.syllable_char.in_(syllable_chars)).all()
             existing_map = {row.syllable_char: row for row in existing_rows}
-            
+
             for ch, ori_ch in zip(syllable_chars, input_text):
                 row = existing_map.get(ori_ch)
                 urls = []
@@ -540,6 +540,8 @@ class SpeechService:
         except Exception as e:
             session.rollback()
             raise
+        finally:
+            session.close()
 
     def transform_pronunciation_data(self, raw_data: List[dict], original_words: List[str]) -> List[Dict]:
         session: Session = self.db.get_session()
