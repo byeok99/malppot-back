@@ -114,8 +114,8 @@ class OpenAIVoiceReactAgent(BaseModel):
                         "turn_detection": {
                             "type": "semantic_vad",
                             "eagerness": "medium",
-                            # "create_response": True,
-                            # "interrupt_response": True,
+                            "create_response": True,
+                            "interrupt_response": True,
                         }
                     },
                 }
@@ -131,7 +131,6 @@ class OpenAIVoiceReactAgent(BaseModel):
                 except json.JSONDecodeError:
                     print("error decoding data:", data_raw)
                     continue
-
                 if stream_key == "input_mic":
                     await model_send(data)
                 elif stream_key == "output_speaker":
