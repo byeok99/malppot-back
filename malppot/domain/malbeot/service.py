@@ -42,7 +42,8 @@ class MalbeotService:
                 "- 사용자의 발음을 정확히 인식하고, 그에 맞는 대답을 해주세요. \n"
                 "- 응답은 반드시 한글로 작성해주세요.\n"
                 "- 꼭 짧은 한문장으로 끝내서 사용자에게 말할 기회를 많이 주세요.\n"
-                "- 꼭 짧게 짧게 대답해주세요. \n"
+                "- 꼭 짧게 짧게 대답해주세요. "
+                "- 한 문장 이상 말하지 말고, 짧은 대화를 주고 받을 수 있게 해주세요.\n"
                 "- 사용자는 조음 장애로 인해, 대답이 느릴 수 있어요. 사용자가 말을 할때까지 충분히 기다려주세요.\n"
             )
 
@@ -57,7 +58,6 @@ class MalbeotService:
             url=self.config.url,
             instructions=self._get_prompt(mode),
         )
-
         async for message in agent.aconnect(browser_receive_stream, websocket.send_text):
             print(f"Received message: {message}")
         print(f"Client disconnected: {websocket.client}")
