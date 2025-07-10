@@ -1,9 +1,18 @@
 from pathlib import Path
 
-from dependency_injector import containers, providers
+from dependency_injector import (
+    containers,
+    providers
+)
 
-from malppot.conf.settings import DBConfig, JWTConfig, OpenAIConfig, AzureSpeechConfig, HeyGenConfig, Config, \
+from malppot.conf.settings import (
+    DBConfig,
+    JWTConfig,
+    OpenAIConfig,
+    AzureSpeechConfig,
+    Config,
     GoogleConfig
+)
 
 
 class ConfigContainer(containers.DeclarativeContainer):
@@ -40,13 +49,6 @@ class ConfigContainer(containers.DeclarativeContainer):
                 azure_key=config.azure_speech.azure_key(),
                 azure_region=config.azure_speech.azure_region(),
                 replicate_key=config.azure_speech.replicate_key()
-            ),
-            heygen=HeyGenConfig(
-                api_key=config.heygen.api_key(),
-                base_url=config.heygen.base_url(),
-                avatar_id=config.heygen.avatar_id(),
-                voice_id=config.heygen.voice_id(),
-                callback_url=config.heygen.callback_url(),
             ),
             google=GoogleConfig(
                 client_id=config.google.client_id(),

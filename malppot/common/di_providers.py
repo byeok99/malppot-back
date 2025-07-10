@@ -3,7 +3,6 @@ from malppot.common.jwt_service import JWTService
 from malppot.di import DI
 from malppot.domain.auth.service import AuthService
 from malppot.domain.game.service import GameService
-from malppot.domain.heygen.service import HeyGenService
 from malppot.domain.malbeot.service import MalbeotService
 from malppot.domain.mypage.service import MyPageService
 from malppot.domain.recommendation.service import RecommendationService
@@ -28,10 +27,6 @@ def get_malbeot_service_from_di() -> MalbeotService:
 
 def get_speech_service_from_di() -> SpeechService:
     return DI.speech.service()
-
-
-def get_heygen_service_from_di() -> HeyGenService:
-    return DI.heygen.service()
 
 
 def get_mypage_service_from_di() -> MyPageService:

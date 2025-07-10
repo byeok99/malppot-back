@@ -30,14 +30,6 @@ class AzureSpeechConfig(BaseSettings):
     replicate_key: str
 
 
-class HeyGenConfig(BaseSettings):
-    api_key: str
-    base_url: str
-    avatar_id: str
-    voice_id: str
-    callback_url: str
-
-
 class GoogleConfig(BaseSettings):
     client_id: str
     client_secret: str
@@ -49,7 +41,6 @@ class Config(BaseSettings):
     jwt: JWTConfig
     openai: OpenAIConfig
     azure_speech: AzureSpeechConfig
-    heygen: HeyGenConfig
     google: GoogleConfig
 
 
@@ -59,6 +50,5 @@ __all__ = (
     'OpenAIConfig',
     'AzureSpeechConfig',
     'GoogleConfig',
-    'HeyGenConfig',
     'Config',
 )

@@ -34,7 +34,6 @@ import malppot.domain.auth.controller
 import malppot.common.dependencies
 import malppot.domain.malbeot.controller
 import malppot.domain.speech.controller
-import malppot.domain.heygen.controller
 import malppot.domain.mypage.controller
 import malppot.domain.game.controller
 
@@ -45,7 +44,6 @@ wiring.wire(
         malppot.domain.auth.controller,
         malppot.domain.malbeot.controller,
         malppot.domain.speech.controller,
-        malppot.domain.heygen.controller,
         malppot.domain.mypage.controller,
         malppot.domain.game.controller,
     ]
@@ -66,13 +64,11 @@ async def custom_exception_handler(request: Request, exc: CustomException):
 from malppot.domain.auth.controller import router as auth_router
 from malppot.domain.malbeot.controller import router as malbeot_router
 from malppot.domain.speech.controller import router as speech_router
-from malppot.domain.heygen.controller import router as heygen_router
 from malppot.domain.mypage.controller import router as mypage_router
 from malppot.domain.game.controller import router as game_router
 
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(malbeot_router, prefix="/malbeot", tags=["malbeot"])
 app.include_router(speech_router, prefix="/speech", tags=["speech"])
-app.include_router(heygen_router, prefix="/heygen", tags=["heygen"])
 app.include_router(mypage_router, prefix="/mypage", tags=["mypage"])
 app.include_router(game_router, prefix="/game", tags=["game"])

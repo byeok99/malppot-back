@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 
 from malppot.common.gpt_service import GPTService
 from malppot.conf.settings import AzureSpeechConfig
-from malppot.domain.heygen.service import HeyGenService
 from malppot.domain.models import (
     User,
     PracticeSession,
@@ -36,13 +35,12 @@ from malppot.utils.text_utils import extract_unique_syllables
 
 
 class SpeechService:
-    def __init__(self, config: AzureSpeechConfig, db, gpt_service: GPTService, heygen_service: HeyGenService):
+    def __init__(self, config: AzureSpeechConfig, db, gpt_service: GPTService):
         if isinstance(config, dict):
             config = AzureSpeechConfig(**config)
         self.config = config
         self.db = db
         self.gpt_service = gpt_service
-        self.heygen_service = heygen_service
 
     async def convert(self, input_text: str):
         converted_text = KoG2Padvanced(input_text)
@@ -58,7 +56,6 @@ class SpeechService:
 
         return {"converted_text": converted_text}
 
-    # 변환된 값에 데이터가 저장되고 있음. 갔 -> 가 에 저장되어서 갔에는 데이터가 안들어감.
     async def _populate_syllable_tongue_videos(self, syllable_chars: Iterable[str], input_text: str) -> None:
         session: Session = self.db.get_session()
         try:

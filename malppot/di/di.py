@@ -6,7 +6,6 @@ from malppot.conf.db import DatabaseSession
 from malppot.di.auth import _AuthContainer
 from malppot.di.config import ConfigContainer
 from malppot.di.game import _GameContainer
-from malppot.di.heygen import _HeygenContainer
 from malppot.di.malbeot import _MalbeotContainer
 from malppot.di.mypage import _MyPageContainer
 from malppot.di.recommendation import _RecommendationContainer
@@ -43,17 +42,10 @@ class DI(containers.DeclarativeContainer):
         db=db,
     )
 
-    heygen = providers.Container(
-        _HeygenContainer,
-        config=config.heygen,
-        db=db,
-    )
-
     speech = providers.Container(
         _SpeechContainer,
         config=config.azure_speech,
         db=db,
-        heygen_svc=heygen.service,
         gpt_service=gpt_service,
     )
 
