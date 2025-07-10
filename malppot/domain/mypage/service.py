@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import enum
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Dict, List, Optional, DefaultDict
 
 from sqlalchemy import func
@@ -30,6 +30,7 @@ from malppot.domain.mypage.schema import (
     PhonemeDetailResponse
 )
 from malppot.domain.recommendation.service import RecommendationService
+from malppot.utils.datetime_utils import today_kst
 
 _ERR_ENG2KOR = {
     "Omission": "생략",
@@ -81,7 +82,7 @@ class MyPageService:
                 ),
             )
 
-            today = datetime.now().date()
+            today = today_kst()
             start = today - timedelta(days=6)
             rows = (
                 db_session.query(
@@ -263,7 +264,7 @@ class MyPageService:
                 ),
             )
 
-            today = datetime.now().date()
+            today = today_kst()
             start = today - timedelta(days=6)
             rows = (
                 s.query(func.date(PracticeSession.created_at),

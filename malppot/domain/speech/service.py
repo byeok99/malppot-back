@@ -31,6 +31,7 @@ from malppot.domain.speech.feedback.comp import (
     extract_lip_movement_sequence,
     make_lips_jobs_from_sequence
 )
+from malppot.utils.datetime_utils import now_kst, today_kst
 from malppot.utils.text_utils import extract_unique_syllables
 
 
@@ -417,7 +418,7 @@ class SpeechService:
             accuracy_score=accuracy,
             fluency_score=fluency,
             completeness_score=completeness,
-            created_at=datetime.datetime.now(),
+            created_at=now_kst(),
             original_text=original_text
         )
         db_session.add(session_obj)
@@ -495,7 +496,7 @@ class SpeechService:
 
     def update_user_practice_summary(self, user_idx):
         session: Session = self.db.get_session()
-        today = datetime.datetime.now().date()
+        today = today_kst()
         start_date = today - datetime.timedelta(days=29)
         yesterday = today - datetime.timedelta(days=1)
         try:

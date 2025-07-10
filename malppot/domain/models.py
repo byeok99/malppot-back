@@ -6,7 +6,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.mysql import CHAR, INTEGER, JSON, TINYINT, DECIMAL, BIGINT
 from sqlalchemy.orm import declarative_base, relationship
-from sqlalchemy.sql import func
+
+from malppot.utils.datetime_utils import now_kst
 
 Base = declarative_base()
 
@@ -49,8 +50,8 @@ class User(Base):
     email = Column(String(255), nullable=False, unique=True)
     name = Column(String(100))
     profile_image_url = Column(String(500))
-    created_at = Column(DateTime, default=func.now())
-    last_login_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), default=now_kst)
+    last_login_at = Column(DateTime(timezone=True), default=now_kst, onupdate=now_kst)
     practice_streak = Column(INTEGER(unsigned=True), default=0)
     total_practice_count = Column(INTEGER(unsigned=True), default=0)
     current_average_accuracy = Column(Float, default=0.0)
@@ -75,22 +76,8 @@ class Word(Base):
     word_idx = Column(CHAR(36), primary_key=True)
     text = Column(String(100), nullable=False)
     pronunciation = Column(Text)
-    representative_video_id = Column(CHAR(36), ForeignKey('video_logs.video_id'))
 
-    representative_video = relationship("VideoLog")
     practice_words = relationship("PracticeWord", back_populates="word")
-
-
-class VideoLog(Base):
-    __tablename__ = 'video_logs'
-    video_id = Column(CHAR(36), primary_key=True)
-    script = Column(Text)
-    status = Column(Enum(VideoLogStatus), default=VideoLogStatus.pending)
-    video_url = Column(Text)
-    created_at = Column(DateTime(timezone=True), default=func.now())
-    expires_at = Column(DateTime(timezone=True), nullable=True)
-
-    words = relationship("Word", overlaps="representative_video")
 
 
 class PracticeSession(Base):
@@ -99,7 +86,7 @@ class PracticeSession(Base):
     user_idx = Column(INTEGER(unsigned=True), ForeignKey('users.user_idx'), nullable=False)
     game_type_idx = Column(CHAR(36), ForeignKey('game_types.game_type_idx'))
     sentence_text = Column(Text)
-    created_at = Column(DateTime)
+    created_at = Column(DateTime(timezone=True), default=now_kst)
     accuracy_score = Column(Float)
     fluency_score = Column(Float)
     completeness_score = Column(Float)
@@ -173,7 +160,7 @@ class RecommendationsWords(Base):
     id = Column(CHAR(36), primary_key=True, default=lambda: str(uuid4()))
     jamo_initial = Column(String(10), nullable=False, index=True)
     words = Column(JSON, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=func.now(), index=True)
+    created_at = Column(DateTime(timezone=True), default=now_kst, index=True)
 
 
 class StageInfo(Base):
@@ -185,7 +172,7 @@ class StageInfo(Base):
     speed = Column(DECIMAL(3, 1), nullable=False)
     interval_ms = Column(Integer, nullable=False)
     lives = Column(Integer, default=0)
-    created_at = Column(DateTime(timezone=True), default=func.now())
+    created_at = Column(DateTime(timezone=True), default=now_kst)
 
     words = relationship(
         "GameWord",
@@ -205,29 +192,23 @@ class UserStageProgress(Base):
     stage = relationship("StageInfo", backref="progresses")
     user = relationship("User", backref="stage_progress")
 
-    def __repr__(self):
-        return f"<UserStageProgress user={self.user_idx} stage={self.stage_id} cleared={self.cleared}>"
-
 
 class EndlessScores(Base):
     __tablename__ = "endless_scores"
 
     user_idx = Column(INTEGER(unsigned=True), ForeignKey("users.user_idx"), primary_key=True)
     best_score = Column(Integer, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), default=now_kst, onupdate=now_kst)
 
     user = relationship("User", backref="endless_score")
-
-    def __repr__(self):
-        return f"<EndlessScores user={self.user_idx} score={self.best_score}>"
 
 
 class GameWord(Base):
     __tablename__ = "game_words"
-    id = Column(BIGINT(unsigned=True), primary_key=True, autoincrement=True)  # BIGINT로 변경
+    id = Column(BIGINT(unsigned=True), primary_key=True, autoincrement=True)
     word = Column(String(255), nullable=False, unique=True)
     image_url = Column(String(1024))
-    created_at = Column(DateTime(timezone=True), default=func.now())
+    created_at = Column(DateTime(timezone=True), default=now_kst)
     stages = relationship(
         "StageInfo",
         secondary="stage_words_link",

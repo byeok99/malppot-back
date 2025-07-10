@@ -1,4 +1,3 @@
-import datetime
 import json
 from typing import List, Dict
 from uuid import uuid4
@@ -8,6 +7,7 @@ from sqlalchemy.orm import Session
 from malppot.common.gpt_service import GPTService
 from malppot.domain.models import RecommendationsWords
 from malppot.domain.speech.service import SpeechService
+from malppot.utils.datetime_utils import now_kst
 
 
 class RecommendationService:
@@ -30,14 +30,14 @@ class RecommendationService:
             existing = session.query(RecommendationsWords).filter_by(jamo_initial=jamo).first()
             if existing:
                 existing.words = words
-                existing.created_at = datetime.datetime.now()
+                existing.created_at = now_kst()
             else:
                 session.add(
                     RecommendationsWords(
                         id=str(uuid4()),
                         jamo_initial=jamo,
                         words=words,
-                        created_at=datetime.datetime.now(),
+                        created_at=now_kst(),
                     )
                 )
             session.commit()

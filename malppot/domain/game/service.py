@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import List, Tuple
 
 from sqlalchemy import select, func
@@ -14,6 +13,7 @@ from malppot.domain.models import (
     StageInfo,
     GameWord
 )
+from malppot.utils.datetime_utils import now_kst
 
 
 class GameService:
@@ -84,7 +84,7 @@ class GameService:
                 user_idx=user_idx,
                 stage_id=stage_id,
                 cleared=1,
-                cleared_at=datetime.now(),
+                cleared_at=now_kst(),
             )
         )
         session.commit()
@@ -96,11 +96,11 @@ class GameService:
             stmt = insert(EndlessScores).values(
                 user_idx=user_idx,
                 best_score=new_score,
-                updated_at=datetime.now()
+                updated_at=now_kst()
             )
             update_dict = {
                 "best_score": stmt.inserted.best_score,
-                "updated_at": datetime.now(),
+                "updated_at": now_kst(),
             }
             stmt = stmt.on_duplicate_key_update(**update_dict)
 
