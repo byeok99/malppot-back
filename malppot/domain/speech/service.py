@@ -199,7 +199,11 @@ class SpeechService:
             return None
 
     async def _populate_syllable_gpt_tips(self, syllable_chars: Iterable[str]) -> None:
-        target_chars = set(syllable_chars)
+        target_chars = set()
+
+        for word in syllable_chars:
+            target_chars.update(list(word))
+
         if not target_chars:
             return
 
@@ -218,6 +222,7 @@ class SpeechService:
             ch for ch in target_chars
             if not (row := existing_map.get(ch)) or not row.gpt_tip
         ]
+
         if not need_gpt:
             return
 
@@ -274,13 +279,13 @@ class SpeechService:
             session.close()
 
     async def evaluate(self, original_text: str, reference_text: str, audio_path: str) -> dict:
-        unique_syllable = extract_unique_syllables(reference_text)
-        await self._populate_syllable_gpt_tips(unique_syllable)
+        # unique_syllable = extract_unique_syllables(reference_text)
+        original_words = original_text.split()
+        await self._populate_syllable_gpt_tips(original_words)
         parsed, assessment_result = self.run_azure_evaluation(reference_text, audio_path)
 
         word_phoneme_scores = self.parse_evaluation_result(parsed)
         feedback = self.map_to_feedback(word_phoneme_scores)
-        original_words = original_text.split()
         word_feedbacks = self.transform_pronunciation_data(word_phoneme_scores, original_words)
 
         if word_feedbacks:
