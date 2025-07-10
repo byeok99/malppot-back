@@ -297,17 +297,11 @@ class MyPageService:
                 elif st.jamo_char in strong:
                     strong[st.jamo_char] = acc
 
-            comp = MyPageComprehensiveData(
-                errorDistribution=self._error_distribution(s, user_idx),
-                soundCategoryAccuracy=_sound_cat_acc({**normal, **strong}),
-            )
-
             return SummaryResponse(
                 userData=user_data,
                 graphData=graph,
                 phonemeAccuracy=normal,
-                tenseConsonants=strong,
-                comprehensiveData=comp,
+                tenseConsonants=strong
             )
         finally:
             s.close()

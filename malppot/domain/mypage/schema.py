@@ -88,7 +88,6 @@ class SummaryResponse(BaseModel):
     graphData: list[MyPageGraphDataPoint]
     phonemeAccuracy: dict[str, float]  # ㄱㄴㄷ…
     tenseConsonants: dict[str, float]  # ㄲㄸ…
-    comprehensiveData: MyPageComprehensiveData
 
 
 class PhonemeDetailResponse(BaseModel):
