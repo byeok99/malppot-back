@@ -84,7 +84,7 @@ class GameService:
                 user_idx=user_idx,
                 stage_id=stage_id,
                 cleared=1,
-                cleared_at=datetime.utcnow(),
+                cleared_at=datetime.now(),
             )
         )
         session.commit()
@@ -96,11 +96,11 @@ class GameService:
             stmt = insert(EndlessScores).values(
                 user_idx=user_idx,
                 best_score=new_score,
-                updated_at=datetime.utcnow()
+                updated_at=datetime.now()
             )
             update_dict = {
                 "best_score": stmt.inserted.best_score,
-                "updated_at": datetime.utcnow(),
+                "updated_at": datetime.now(),
             }
             stmt = stmt.on_duplicate_key_update(**update_dict)
 

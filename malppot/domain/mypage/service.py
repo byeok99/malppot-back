@@ -81,7 +81,7 @@ class MyPageService:
                 ),
             )
 
-            today = datetime.utcnow().date()
+            today = datetime.now().date()
             start = today - timedelta(days=6)
             rows = (
                 db_session.query(
@@ -263,7 +263,7 @@ class MyPageService:
                 ),
             )
 
-            today = datetime.utcnow().date()
+            today = datetime.now().date()
             start = today - timedelta(days=6)
             rows = (
                 s.query(func.date(PracticeSession.created_at),

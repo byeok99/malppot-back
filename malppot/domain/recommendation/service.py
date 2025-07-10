@@ -30,14 +30,14 @@ class RecommendationService:
             existing = session.query(RecommendationsWords).filter_by(jamo_initial=jamo).first()
             if existing:
                 existing.words = words
-                existing.created_at = datetime.datetime.utcnow()
+                existing.created_at = datetime.datetime.now()
             else:
                 session.add(
                     RecommendationsWords(
                         id=str(uuid4()),
                         jamo_initial=jamo,
                         words=words,
-                        created_at=datetime.datetime.utcnow(),
+                        created_at=datetime.datetime.now(),
                     )
                 )
             session.commit()
@@ -64,10 +64,7 @@ class RecommendationService:
             words = row[0]  # .words 컬럼만 선택했으므로 튜플
             # words가 이미 파싱된 list[dict]면 그대로, 아니면 json 파싱
             result = words if isinstance(words, list) else json.loads(words)
-            # 안전을 위해 타입 체크
-            print("----------------------")
-            print(result)
-            print("----------------------")
+
             if isinstance(result, list) and all(
                     isinstance(x, dict) and 'word' in x and 'sentence' in x for x in result):
                 return result

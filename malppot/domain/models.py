@@ -87,8 +87,8 @@ class VideoLog(Base):
     script = Column(Text)
     status = Column(Enum(VideoLogStatus), default=VideoLogStatus.pending)
     video_url = Column(Text)
-    created_at = Column(DateTime, default=func.now())
-    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=True)
 
     words = relationship("Word", overlaps="representative_video")
 
@@ -99,7 +99,7 @@ class PracticeSession(Base):
     user_idx = Column(INTEGER(unsigned=True), ForeignKey('users.user_idx'), nullable=False)
     game_type_idx = Column(CHAR(36), ForeignKey('game_types.game_type_idx'))
     sentence_text = Column(Text)
-    created_at = Column(DateTime, default=func.now())
+    created_at = Column(DateTime)
     accuracy_score = Column(Float)
     fluency_score = Column(Float)
     completeness_score = Column(Float)
@@ -173,7 +173,7 @@ class RecommendationsWords(Base):
     id = Column(CHAR(36), primary_key=True, default=lambda: str(uuid4()))
     jamo_initial = Column(String(10), nullable=False, index=True)
     words = Column(JSON, nullable=False)
-    created_at = Column(DateTime, default=func.now(), index=True)
+    created_at = Column(DateTime(timezone=True), default=func.now(), index=True)
 
 
 class StageInfo(Base):
@@ -185,7 +185,7 @@ class StageInfo(Base):
     speed = Column(DECIMAL(3, 1), nullable=False)
     interval_ms = Column(Integer, nullable=False)
     lives = Column(Integer, default=0)
-    created_at = Column(DateTime, default=func.now())
+    created_at = Column(DateTime(timezone=True), default=func.now())
 
     words = relationship(
         "GameWord",
@@ -200,7 +200,7 @@ class UserStageProgress(Base):
     user_idx = Column(INTEGER(unsigned=True), ForeignKey("users.user_idx"), primary_key=True)
     stage_id = Column(Integer, ForeignKey("stage_info.stage_id"), primary_key=True)
     cleared = Column(TINYINT(1), default=0)
-    cleared_at = Column(DateTime, nullable=True)
+    cleared_at = Column(DateTime(timezone=True), nullable=True)
 
     stage = relationship("StageInfo", backref="progresses")
     user = relationship("User", backref="stage_progress")
@@ -214,7 +214,7 @@ class EndlessScores(Base):
 
     user_idx = Column(INTEGER(unsigned=True), ForeignKey("users.user_idx"), primary_key=True)
     best_score = Column(Integer, nullable=False)
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
 
     user = relationship("User", backref="endless_score")
 
@@ -227,7 +227,7 @@ class GameWord(Base):
     id = Column(BIGINT(unsigned=True), primary_key=True, autoincrement=True)  # BIGINT로 변경
     word = Column(String(255), nullable=False, unique=True)
     image_url = Column(String(1024))
-    created_at = Column(DateTime, default=func.now())
+    created_at = Column(DateTime(timezone=True), default=func.now())
     stages = relationship(
         "StageInfo",
         secondary="stage_words_link",

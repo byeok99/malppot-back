@@ -48,8 +48,6 @@ class SpeechService:
         unique_syllable = extract_unique_syllables(converted_text)
         lips_movement = extract_lip_movement_sequence(converted_text)
         input_text = input_text.replace(" ", "")
-        for a, b in zip(lips_movement, input_text):
-            print(a, b)
 
         asyncio.create_task(self._populate_syllable_tongue_videos(unique_syllable, input_text))
         asyncio.create_task(self._populate_syllable_lips_videos(lips_movement, input_text))
@@ -419,7 +417,7 @@ class SpeechService:
             accuracy_score=accuracy,
             fluency_score=fluency,
             completeness_score=completeness,
-            created_at=datetime.datetime.utcnow(),
+            created_at=datetime.datetime.now(),
             original_text=original_text
         )
         db_session.add(session_obj)
@@ -497,7 +495,7 @@ class SpeechService:
 
     def update_user_practice_summary(self, user_idx):
         session: Session = self.db.get_session()
-        today = datetime.datetime.utcnow().date()
+        today = datetime.datetime.now().date()
         start_date = today - datetime.timedelta(days=29)
         yesterday = today - datetime.timedelta(days=1)
         try:
