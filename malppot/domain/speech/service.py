@@ -289,6 +289,7 @@ class SpeechService:
                 for w in word_feedbacks
             ]
             avg_score = sum(scores) / (len(scores) or 1)
+            avg_score = round(avg_score, 2)
         else:
             avg_score = 0.0
 
