@@ -23,8 +23,7 @@ azure_speech:
     azure_region: ""
     replicate_key: ""
 
-heygen:
-    api_key: ""
-    base_url: ""
-    avatar_id: ""
-    voice_id: ""
+google:
+    client_id: ""
+    client_secret: ""
+    redirect_uri: ""
