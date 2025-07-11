@@ -435,6 +435,7 @@ class MyPageService:
                 word_map[word_txt].append((created_at, avg_score, error_type))
         result: list[MyPageDetailedAnalysisItem] = []
         for word_txt, items in word_map.items():
+            items = [x for x in items if x[0] is not None]
             items_sorted = sorted(items, key=lambda x: x[0])
             history_scores = [round(float(avg), 2) for _, avg, _ in items_sorted][-7:]
             _, latest_score, latest_error = items_sorted[-1]
