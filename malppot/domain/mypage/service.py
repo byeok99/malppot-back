@@ -27,7 +27,8 @@ from malppot.domain.mypage.schema import (
     PhonemePositionAnalysis,
     ErrorTendency,
     SummaryResponse,
-    PhonemeDetailResponse
+    PhonemeDetailResponse,
+    PatientReport
 )
 from malppot.domain.recommendation.service import RecommendationService
 from malppot.utils.datetime_utils import today_kst
@@ -448,6 +449,179 @@ class MyPageService:
                 )
             )
         return result
+
+    def get_report(self, user_idx: int) -> PatientReport:
+        s = self.db_manager.get_session()
+        try:
+            # --- 1. 기본 유저/진단 정보 ---
+            user = s.query(User).filter_by(user_idx=user_idx).first()
+            if not user:
+                raise ValueError("존재하지 않는 유저입니다.")
+            name = user.name
+            total_count = user.total_practice_count
+            streak = user.practice_streak
+
+            # --- 3. 전체 평균 정확도 ---
+            overall_acc = round(user.current_average_accuracy or 0.0, 2)
+
+            # --- 4. 자음별 정확도 ---
+            CONSONANTS = set("ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ")
+            stats = (
+                s.query(JamoStatistic)
+                .filter(JamoStatistic.user_idx == user_idx)
+                .all()
+            )
+            consonant_acc = {
+                stat.jamo_char: round(stat.total_score / stat.attempt_count, 2)
+                for stat in stats
+                if stat.attempt_count > 0 and stat.jamo_char in CONSONANTS
+            }
+
+            # --- 5. 최근 7일 정확도 변화 ---
+            today = today_kst()
+            start = today - timedelta(days=6)
+            rows = (
+                s.query(
+                    func.date(PracticeSession.created_at),
+                    func.avg(PracticeSession.accuracy_score)
+                )
+                .filter(
+                    PracticeSession.user_idx == user_idx,
+                    func.date(PracticeSession.created_at) >= start
+                )
+                .group_by(func.date(PracticeSession.created_at))
+                .all()
+            )
+            date_map = {d: round(float(a), 2) for d, a in rows}
+            accuracy_trend = [
+                date_map.get(start + timedelta(i), 0.0)
+                for i in range(7)
+            ]
+
+            # --- 6. 주의해야할 음소(최저 정확도+위치) ---
+            tried_jamo_set = {
+                row[0]
+                for row in (
+                    s.query(PronunciationScore.jamo_char)
+                    .join(PracticeWord, PracticeWord.practice_word_idx == PronunciationScore.practice_word_idx)
+                    .filter(
+                        PracticeWord.user_idx == user_idx,
+                        PronunciationScore.jamo_char.in_(CONSONANTS),
+                        PronunciationScore.score.isnot(None)
+                    )
+                    .group_by(PronunciationScore.jamo_char)
+                    .all()
+                )
+            }
+            pos_rows = (
+                s.query(
+                    PronunciationScore.jamo_char,
+                    PronunciationScore.jamo_position,
+                    func.avg(PronunciationScore.score),
+                    func.count(PronunciationScore.score)
+                )
+                .join(PracticeWord, PracticeWord.practice_word_idx == PronunciationScore.practice_word_idx)
+                .filter(
+                    PracticeWord.user_idx == user_idx,
+                    PronunciationScore.jamo_char.in_(tried_jamo_set)
+                )
+                .group_by(PronunciationScore.jamo_char, PronunciationScore.jamo_position)
+                .all()
+            )
+            filtered_rows = [
+                (j, p, a) for j, p, a, cnt in pos_rows if cnt > 0 and a is not None
+            ]
+            sorted_phonemes = sorted(filtered_rows, key=lambda x: x[2])
+            attention_phonemes = [
+                {"phoneme": j, "position": p, "accuracy": round(a, 2)}
+                for j, p, a in sorted_phonemes[:2]
+            ]
+
+            # --- 7. jamo_detail 유형별 통계 ---
+            # score_rows, error_type_rows 쿼리 반드시 포함!
+            score_rows = (
+                s.query(
+                    PronunciationScore.jamo_char,
+                    PronunciationScore.jamo_position,
+                    func.avg(PronunciationScore.score)
+                )
+                .join(PracticeWord, PracticeWord.practice_word_idx == PronunciationScore.practice_word_idx)
+                .filter(
+                    PracticeWord.user_idx == user_idx,
+                    PronunciationScore.jamo_char.in_(CONSONANTS)  # 자음만!
+                )
+                .group_by(PronunciationScore.jamo_char, PronunciationScore.jamo_position)
+                .all()
+            )
+
+            error_type_rows = (
+                s.query(
+                    PronunciationScore.jamo_char,
+                    PronunciationScore.jamo_position,
+                    PracticeWord.error_type,
+                    func.count()
+                )
+                .join(PracticeWord, PracticeWord.practice_word_idx == PronunciationScore.practice_word_idx)
+                .filter(
+                    PracticeWord.user_idx == user_idx,
+                    PronunciationScore.jamo_char.in_(CONSONANTS)  # 자음만!
+                )
+                .group_by(PronunciationScore.jamo_char, PronunciationScore.jamo_position, PracticeWord.error_type)
+                .all()
+            )
+
+            attempt_rows = (
+                s.query(
+                    PronunciationScore.jamo_char,
+                    PronunciationScore.jamo_position,
+                    func.count()
+                )
+                .join(PracticeWord, PracticeWord.practice_word_idx == PronunciationScore.practice_word_idx)
+                .filter(
+                    PracticeWord.user_idx == user_idx,
+                    PronunciationScore.jamo_char.in_(CONSONANTS)  # 자음만!
+                )
+                .group_by(PronunciationScore.jamo_char, PronunciationScore.jamo_position)
+                .all()
+            )
+            score_by_jamo_pos = {
+                (j, p): round(a, 2) if a is not None else None
+                for j, p, a in score_rows or []
+            }
+
+            attempt_dict = {(j, p): total for j, p, total in attempt_rows}
+            error_by_jamo_pos = defaultdict(list)
+            for row in (error_type_rows or []):
+                j, p, e, c = row
+                total = attempt_dict.get((j, p), 0)
+                percent = round((c / total * 100), 1) if total > 0 else 0
+                error_by_jamo_pos[(j, p)].append({
+                    "error_type": e,
+                    "count": c,
+                    "percent": percent
+                })
+            jamo_detail = []
+            for (j, p), avg_score in score_by_jamo_pos.items():
+                jamo_detail.append({
+                    "phoneme": j,
+                    "position": p,
+                    "average_score": avg_score,
+                    "total_attempts": attempt_dict.get((j, p), 0),
+                    "error_types": error_by_jamo_pos.get((j, p), [])
+                })
+
+            return PatientReport(
+                name=name,
+                total_practice_count=total_count,
+                practice_streak=streak,
+                overall_accuracy=overall_acc,
+                consonant_scores=consonant_acc,
+                seven_day_accuracy_trend=accuracy_trend,
+                attention_phonemes=attention_phonemes,
+                jamo_detail=jamo_detail,
+            )
+        finally:
+            s.close()
 
 
 def _sound_cat_acc(all_acc: Dict[str, float]) -> Dict[str, float]:

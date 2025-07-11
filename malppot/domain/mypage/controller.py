@@ -12,7 +12,8 @@ from malppot.domain.models import User
 from malppot.domain.mypage.schema import (
     MyPageResponse,
     SummaryResponse,
-    PhonemeDetailResponse
+    PhonemeDetailResponse,
+    PatientReport
 )
 from malppot.domain.mypage.service import MyPageService
 
@@ -59,3 +60,11 @@ async def get_phoneme_detail(
         svc: MyPageService = Depends(get_mypage_service_from_di),
 ):
     return await svc.get_phoneme_detail(user.user_idx, jamo)
+
+
+@router.get("/report", response_model=PatientReport)
+async def get_phoneme(
+        user: User = Depends(get_current_user),
+        svc: MyPageService = Depends(get_mypage_service_from_di),
+):
+    return svc.get_report(user.user_idx)

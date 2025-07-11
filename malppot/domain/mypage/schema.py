@@ -1,5 +1,5 @@
 from datetime import date
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Literal
 
 from pydantic import BaseModel, Field
 
@@ -93,3 +93,28 @@ class SummaryResponse(BaseModel):
 class PhonemeDetailResponse(BaseModel):
     phoneme: str  # 요청한 자음
     detail: PhonemeAnalysis
+
+
+class ErrorTypeStat(BaseModel):
+    error_type: Optional[str]
+    count: int
+    percent: float
+
+
+class JamoDetail(BaseModel):
+    phoneme: str  # 자음
+    position: Literal["초성", "종성"]
+    average_score: Optional[float]
+    total_attempts: int
+    error_types: List[ErrorTypeStat]
+
+
+class PatientReport(BaseModel):
+    name: str
+    total_practice_count: int
+    practice_streak: int
+    overall_accuracy: float
+    consonant_scores: Dict[str, float]  # 자음별 평균 정확도
+    seven_day_accuracy_trend: List[float]
+    attention_phonemes: List[Dict[str, float | str]]  # [{phoneme, position, accuracy}]
+    jamo_detail: List[JamoDetail]
