@@ -31,8 +31,9 @@ class MalbeotService:
 
                 return (
                     f"지금까지의 발음 기록을 살펴본 결과, 사용자는 '{phoneme}' 발음이 {position} 위치에서 다소 부정확하게 측정되었습니다.\n"
-                    f"따라서 '{phoneme}'이 {position}에 포함된 단어를 활용한 문장을 연습하면 발음 개선에 도움이 됩니다.\n"
-                    f"'{phoneme}'이 {position}에 오는 단어가 포함된 문장을 하나 추천한 뒤, 천천히 또박또박 발음해보도록 유도해주세요.\n\n"
+                    f"따라서 '{phoneme}'이 포함된 단어를 활용한 문장을 연습하면 발음 개선에 도움이 됩니다.\n"
+                    f"'{phoneme}'이 포함된 문장을 하나 추천한 뒤, 천천히 또박또박 발음해보도록 유도해주세요.\n"
+                    f"항상 `기록을 보니 @@ 발음이 부정확하네요. @@ 문장을 연습해볼까요?`로 시작해주세요.\n\n"
                 )
 
             intro = _get_intro_from_attention(attention_jamo)
