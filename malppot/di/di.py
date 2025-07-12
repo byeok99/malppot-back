@@ -36,12 +36,6 @@ class DI(containers.DeclarativeContainer):
         db=db,
     )
 
-    malbeot = providers.Container(
-        _MalbeotContainer,
-        config=config.openai,
-        db=db,
-    )
-
     speech = providers.Container(
         _SpeechContainer,
         config=config.azure_speech,
@@ -60,6 +54,13 @@ class DI(containers.DeclarativeContainer):
         _MyPageContainer,
         db=db,
         recommendation_service=recommendation.service
+    )
+
+    malbeot = providers.Container(
+        _MalbeotContainer,
+        config=config.openai,
+        db=db,
+        mypage_service=mypage.service,
     )
 
     game = providers.Container(

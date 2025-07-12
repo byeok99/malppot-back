@@ -2,6 +2,7 @@ import logging
 
 from fastapi import APIRouter, WebSocket, Depends, status, Query
 
+from malppot.common.dependencies import get_current_user_ws
 from malppot.common.di_providers import (
     get_malbeot_service_from_di
 )
@@ -16,12 +17,13 @@ async def _close_websocket_with_error(websocket: WebSocket, reason: str, code: i
     await websocket.close(code=code, reason=reason)
 
 
-## 클로즈시 서버에서 세션이 안닫힘
 @router.websocket("/ws")
 async def chat_with_malbeot(
         websocket: WebSocket,
         malbeot_service=Depends(get_malbeot_service_from_di),
         mode: str = Query(...),
 ):
+    user = get_current_user_ws(websocket)
+    
     await websocket.accept()
-    await malbeot_service.serve(websocket, mode)
+    await malbeot_service.serve(websocket, mode, user.user_idx)

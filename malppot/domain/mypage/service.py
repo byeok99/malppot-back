@@ -64,6 +64,7 @@ class MyPageService:
     def __init__(self, db, recommendation_service: RecommendationService):
         self.db_manager = db
         self.recommendation_service = recommendation_service
+        self.CONSONANTS: set[str] = set("ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ")
 
     async def get_mypage_data(self, user_idx: int) -> MyPageResponse:
         db_session = self.db_manager.get_session()
@@ -248,7 +249,6 @@ class MyPageService:
 
     async def get_summary(self, user_idx: int) -> SummaryResponse:
         s = self.db_manager.get_session()
-        CONSONANTS: set[str] = set("ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ")
         try:
             user = s.query(User).filter_by(user_idx=user_idx).first()
             if not user:
@@ -290,7 +290,7 @@ class MyPageService:
                             .filter_by(user_idx=user_idx)
                             .all()
             ):
-                if not st.attempt_count or st.jamo_char not in CONSONANTS:
+                if not st.attempt_count or st.jamo_char not in self.CONSONANTS:
                     continue
 
                 acc = round(st.total_score / st.attempt_count, 2)
@@ -466,7 +466,6 @@ class MyPageService:
             overall_acc = round(user.current_average_accuracy or 0.0, 2)
 
             # --- 4. 자음별 정확도 ---
-            CONSONANTS = set("ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ")
             stats = (
                 s.query(JamoStatistic)
                 .filter(JamoStatistic.user_idx == user_idx)
@@ -475,7 +474,7 @@ class MyPageService:
             consonant_acc = {
                 stat.jamo_char: round(stat.total_score / stat.attempt_count, 2)
                 for stat in stats
-                if stat.attempt_count > 0 and stat.jamo_char in CONSONANTS
+                if stat.attempt_count > 0 and stat.jamo_char in self.CONSONANTS
             }
 
             # --- 5. 최근 7일 정확도 변화 ---
@@ -500,46 +499,12 @@ class MyPageService:
             ]
 
             # --- 6. 주의해야할 음소(최저 정확도+위치) ---
-            tried_jamo_set = {
-                row[0]
-                for row in (
-                    s.query(PronunciationScore.jamo_char)
-                    .join(PracticeWord, PracticeWord.practice_word_idx == PronunciationScore.practice_word_idx)
-                    .filter(
-                        PracticeWord.user_idx == user_idx,
-                        PronunciationScore.jamo_char.in_(CONSONANTS),
-                        PronunciationScore.score.isnot(None)
-                    )
-                    .group_by(PronunciationScore.jamo_char)
-                    .all()
-                )
-            }
-            pos_rows = (
-                s.query(
-                    PronunciationScore.jamo_char,
-                    PronunciationScore.jamo_position,
-                    func.avg(PronunciationScore.score),
-                    func.count(PronunciationScore.score)
-                )
-                .join(PracticeWord, PracticeWord.practice_word_idx == PronunciationScore.practice_word_idx)
-                .filter(
-                    PracticeWord.user_idx == user_idx,
-                    PronunciationScore.jamo_char.in_(tried_jamo_set)
-                )
-                .group_by(PronunciationScore.jamo_char, PronunciationScore.jamo_position)
-                .all()
+            attention_phonemes = self.get_attention_jamo(
+                user_idx=user_idx,
+                jamo_num=2
             )
-            filtered_rows = [
-                (j, p, a) for j, p, a, cnt in pos_rows if cnt > 0 and a is not None
-            ]
-            sorted_phonemes = sorted(filtered_rows, key=lambda x: x[2])
-            attention_phonemes = [
-                {"phoneme": j, "position": p, "accuracy": round(a, 2)}
-                for j, p, a in sorted_phonemes[:2]
-            ]
 
             # --- 7. jamo_detail 유형별 통계 ---
-            # score_rows, error_type_rows 쿼리 반드시 포함!
             score_rows = (
                 s.query(
                     PronunciationScore.jamo_char,
@@ -549,7 +514,7 @@ class MyPageService:
                 .join(PracticeWord, PracticeWord.practice_word_idx == PronunciationScore.practice_word_idx)
                 .filter(
                     PracticeWord.user_idx == user_idx,
-                    PronunciationScore.jamo_char.in_(CONSONANTS)  # 자음만!
+                    PronunciationScore.jamo_char.in_(self.CONSONANTS)  # 자음만!
                 )
                 .group_by(PronunciationScore.jamo_char, PronunciationScore.jamo_position)
                 .all()
@@ -565,7 +530,7 @@ class MyPageService:
                 .join(PracticeWord, PracticeWord.practice_word_idx == PronunciationScore.practice_word_idx)
                 .filter(
                     PracticeWord.user_idx == user_idx,
-                    PronunciationScore.jamo_char.in_(CONSONANTS)  # 자음만!
+                    PronunciationScore.jamo_char.in_(self.CONSONANTS)  # 자음만!
                 )
                 .group_by(PronunciationScore.jamo_char, PronunciationScore.jamo_position, PracticeWord.error_type)
                 .all()
@@ -580,7 +545,7 @@ class MyPageService:
                 .join(PracticeWord, PracticeWord.practice_word_idx == PronunciationScore.practice_word_idx)
                 .filter(
                     PracticeWord.user_idx == user_idx,
-                    PronunciationScore.jamo_char.in_(CONSONANTS)  # 자음만!
+                    PronunciationScore.jamo_char.in_(self.CONSONANTS)  # 자음만!
                 )
                 .group_by(PronunciationScore.jamo_char, PronunciationScore.jamo_position)
                 .all()
@@ -623,6 +588,61 @@ class MyPageService:
             )
         finally:
             s.close()
+
+    def get_attention_jamo(self, user_idx: int, jamo_num: int):
+        session = self.db_manager.get_session()
+
+        try:
+            # 1. 사용자가 연습한 자모 추출
+            tried_jamo_set = {
+                row[0]
+                for row in (
+                    session.query(PronunciationScore.jamo_char)
+                    .join(PracticeWord, PracticeWord.practice_word_idx == PronunciationScore.practice_word_idx)
+                    .filter(
+                        PracticeWord.user_idx == user_idx,
+                        PronunciationScore.jamo_char.in_(self.CONSONANTS),
+                        PronunciationScore.score.isnot(None)
+                    )
+                    .group_by(PronunciationScore.jamo_char)
+                    .all()
+                )
+            }
+
+            # 2. 자모 + 위치 별 평균 정확도 및 시도 수
+            pos_rows = (
+                session.query(
+                    PronunciationScore.jamo_char,
+                    PronunciationScore.jamo_position,
+                    func.avg(PronunciationScore.score),
+                    func.count(PronunciationScore.score)
+                )
+                .join(PracticeWord, PracticeWord.practice_word_idx == PronunciationScore.practice_word_idx)
+                .filter(
+                    PracticeWord.user_idx == user_idx,
+                    PronunciationScore.jamo_char.in_(tried_jamo_set)
+                )
+                .group_by(PronunciationScore.jamo_char, PronunciationScore.jamo_position)
+                .all()
+            )
+
+            # 3. 정확도 정렬 후 jamo_num개 추출
+            filtered_rows = [
+                (j, p, a) for j, p, a, cnt in pos_rows if cnt > 0 and a is not None
+            ]
+            sorted_phonemes = sorted(filtered_rows, key=lambda x: x[2])  # 정확도 오름차순
+
+            return [
+                {"phoneme": j, "position": p, "accuracy": round(a, 2)}
+                for j, p, a in sorted_phonemes[:jamo_num]
+            ]
+
+        except Exception as e:
+            print(f"[ERROR] Failed to fetch attention jamo for user {user_idx}: {e}")
+            return []
+
+        finally:
+            session.close()
 
 
 def _sound_cat_acc(all_acc: Dict[str, float]) -> Dict[str, float]:
