@@ -23,7 +23,11 @@ async def chat_with_malbeot(
         malbeot_service=Depends(get_malbeot_service_from_di),
         mode: str = Query(...),
 ):
-    user = get_current_user_ws(websocket)
-    
     await websocket.accept()
-    await malbeot_service.serve(websocket, mode, user.user_idx)
+
+    try:
+        user = get_current_user_ws(websocket)
+        await malbeot_service.serve(websocket, mode, user.user_idx)
+
+    except Exception as e:
+        await _close_websocket_with_error(websocket, str(e), code=status.WS_1011_INTERNAL_ERROR)
