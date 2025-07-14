@@ -87,10 +87,6 @@ def tag_jamo_roles(hangul: str) -> list[dict]:
 
 
 def make_tongue_jobs_for_syllable(ch: str) -> list[dict]:
-    """
-    초성-중성, 중성-종성의 혀/입모양 frame pair를 만드는 함수.
-    변이음(ㅅ/ㅆ), 초성 'ㅎ'의 특수성 반영!
-    """
     roles = tag_jamo_roles(ch)
     onset = next((j for j in roles if j["position"] == "초성"), None)
     vowel = next((j for j in roles if j["position"] == "중성"), None)
@@ -98,43 +94,69 @@ def make_tongue_jobs_for_syllable(ch: str) -> list[dict]:
     jobs = []
 
     def path(j):
-        # 1. ㅅ/ㅆ 변이음 분기
         if j and j["jamo"] in {"ㅅ", "ㅆ"} and j["position"] == "초성":
             v = vowel["jamo"] if vowel else ""
             key = get_sibilant_key(j["jamo"], v)
             return VISEME_TABLE.get(key, "")
-        # 2. ㅎ 예외 처리: 초성 'ㅎ' → 모음 frame
         if j and j["jamo"] == "ㅎ" and j["position"] == "초성":
-            # return VISEME_TABLE.get(vowel["jamo"], "") if vowel else ""
-            return
-        # 3. 일반 자모
+            return None
         return VISEME_TABLE.get(j["jamo"], "") if j else ""
 
-    # [1] 초성→중성 (단, onset이 'ㅎ'이면 frame1도 중성 프레임)
-    if onset and vowel and path(onset) and path(vowel):
-        frame1 = path(onset)
-        frame2 = path(vowel)
-        file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
-        jobs.append({
-            "letter": ch,
-            "frame1": f"https://api.malppot.com/static/images/{frame1}",
-            "frame2": f"https://api.malppot.com/static/images/{frame2}",
-            "segment": "초성중성",
-            "output": file_name
-        })
+    # [1] 초성→중성
+    if onset and vowel:
+        if onset["jamo"] == "ㅎ":
+            frame1 = path(vowel)
+            frame2 = path(vowel)
+        else:
+            frame1 = path(onset)
+            frame2 = path(vowel)
 
-    # [2] 중성→종성 (그대로)
+        if frame1 and frame2:
+            if frame1 == frame2:
+                # [중요] 동영상이 아니라 이미지 job을 만든다
+                file_name = get_filename_from_url(frame1)  # 예: 'ㅏ.png'
+                jobs.append({
+                    "letter": ch,
+                    "frame1": f"https://api.malppot.com/static/images/{frame1}",
+                    "frame2": None,
+                    "segment": "단독",
+                    "type": "image",
+                    "output": file_name
+                })
+            else:
+                file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
+                jobs.append({
+                    "letter": ch,
+                    "frame1": f"https://api.malppot.com/static/images/{frame1}",
+                    "frame2": f"https://api.malppot.com/static/images/{frame2}",
+                    "segment": "초성중성",
+                    "type": "video",
+                    "output": file_name
+                })
+
+    # [2] 중성→종성 (기존 방식, 필요시 동일 프레임도 분리 가능)
     if vowel and coda and path(vowel) and path(coda):
         frame1 = path(vowel)
         frame2 = path(coda)
-        file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
-        jobs.append({
-            "letter": ch,
-            "frame1": f"https://api.malppot.com/static/images/{frame1}",
-            "frame2": f"https://api.malppot.com/static/images/{frame2}",
-            "segment": "중성종성",
-            "output": file_name
-        })
+        if frame1 == frame2:
+            file_name = get_filename_from_url(frame1)
+            jobs.append({
+                "letter": ch,
+                "frame": f"https://api.malppot.com/static/images/{frame1}",
+                "segment": "중성종성",
+                "type": "image",
+                "output": file_name
+            })
+        else:
+            file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
+            jobs.append({
+                "letter": ch,
+                "frame1": f"https://api.malppot.com/static/images/{frame1}",
+                "frame2": f"https://api.malppot.com/static/images/{frame2}",
+                "segment": "중성종성",
+                "type": "video",
+                "output": file_name
+            })
 
     return jobs
 

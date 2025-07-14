@@ -75,8 +75,18 @@ class SpeechService:
 
                 jobs = make_tongue_jobs_for_syllable(ch)
                 video_urls = []
+                # for job in jobs:
+                #     video_url = await self.make_single_video(job, 'tongue')
+                #     if video_url:
+                #         video_urls.append(str(video_url))
                 for job in jobs:
-                    video_url = await self.make_single_video(job, 'tongue')
+                    if job['segment'] == '단독':
+                        frame1_path = job['frame1']
+                        # URL, 경로 뭐든 파일명만 뽑아서 씀
+                        filename = os.path.basename(frame1_path)
+                        video_url = f"/static/images/{filename}"
+                    else:
+                        video_url = await self.make_single_video(job, 'tongue')
                     if video_url:
                         video_urls.append(str(video_url))
 
@@ -279,7 +289,6 @@ class SpeechService:
             session.close()
 
     async def evaluate(self, original_text: str, reference_text: str, audio_path: str) -> dict:
-        # unique_syllable = extract_unique_syllables(reference_text)
         original_words = original_text.split()
         await self._populate_syllable_gpt_tips(original_words)
         parsed, assessment_result = self.run_azure_evaluation(reference_text, audio_path)
