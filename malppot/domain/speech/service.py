@@ -75,10 +75,7 @@ class SpeechService:
 
                 jobs = make_tongue_jobs_for_syllable(ch)
                 video_urls = []
-                # for job in jobs:
-                #     video_url = await self.make_single_video(job, 'tongue')
-                #     if video_url:
-                #         video_urls.append(str(video_url))
+
                 for job in jobs:
                     if job['segment'] == '단독':
                         frame1_path = job['frame1']
@@ -124,6 +121,7 @@ class SpeechService:
                     continue
 
                 jobs = make_lips_jobs_from_sequence(seq)
+                
                 video_urls = []
                 for job in jobs:
                     if job['segment'] == '단독':
