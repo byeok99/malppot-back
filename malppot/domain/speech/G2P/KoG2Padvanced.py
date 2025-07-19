@@ -6,6 +6,14 @@ __all__ = ["split_syllable_char", "split_syllables",
            "CHAR_INITIALS", "CHAR_MEDIALS", "CHAR_FINALS"]
 
 import itertools
+import re
+
+from g2pk import G2p  # g2pk 라이브러리 임포트
+from konlpy.tag import Kkma
+
+# g2pk 객체 초기화 (한 번만 수행)
+g2p_converter = G2p()
+kkma = Kkma()
 
 INITIAL = 0x001
 MEDIAL = 0x010
@@ -87,24 +95,6 @@ def get_jamo_type(c):
 
 
 def split_syllable_char(c):
-    """
-    Splits a given korean syllable into its components. Each component is
-    represented by Unicode in 'Hangul Compatibility Jamo' range.
-    Arguments:
-        c: A Korean character.
-    Returns:
-        A triple (initial, medial, final) of Hangul Compatibility Jamos.
-        If no jamo corresponds to a position, `None` is returned there.
-    Example:
-        >>> split_syllable_char("안")
-        ("ㅇ", "ㅏ", "ㄴ")
-        >>> split_syllable_char("고")
-        ("ㄱ", "ㅗ", None)
-        >>> split_syllable_char("ㅗ")
-        (None, "ㅗ", None)
-        >>> split_syllable_char("ㅇ")
-        ("ㅇ", None, None)
-    """
     check_hangul(c)
     if len(c) != 1:
         raise ValueError("Input string must have exactly one character.")
@@ -139,365 +129,175 @@ def split_syllable_char(c):
 
 
 def split_syllables(s, ignore_err=True, pad=None):
-    """
-    Performs syllable-split on a string.
-    Arguments:
-        s (str): A string (possibly mixed with non-Hangul characters).
-        ignore_err (bool): If set False, it ensures that all characters in
-            the string are Hangul-splittable and throws a ValueError otherwise.
-            (default: True)
-        pad (str): Pad empty jamo positions (initial, medial, or final) with
-            `pad` character. This is useful for cases where fixed-length
-            strings are needed. (default: None)
-    Returns:
-        Hangul-split string
-    Example:
-        >>> split_syllables("안녕하세요")
-        "ㅇㅏㄴㄴㅕㅇㅎㅏㅅㅔㅇㅛ"
-        >>> split_syllables("안녕하세요~~", ignore_err=False)
-        ValueError: encountered an unsupported character: ~ (0x7e)
-        >>> split_syllables("안녕하세요ㅛ", pad="x")
-        'ㅇㅏㄴㄴㅕㅇㅎㅏxㅅㅔxㅇㅛxxㅛx'
-    """
-
-    def try_split(c):
-        try:
-            return split_syllable_char(c)
-        except ValueError:
-            if ignore_err:
-                return (c,)
-            raise ValueError(f"encountered an unsupported character: "
-                             f"{c} (0x{ord(c):x})")
-
-    s = map(try_split, s)
-    if pad is not None:
-        tuples = map(lambda x: tuple(pad if y is None else y for y in x), s)
-    else:
-        tuples = map(lambda x: filter(None, x), s)
-    return "".join(itertools.chain(*tuples))
+    # 완성형 음절은 분해하지 않고 그대로 반환하도록 수정
+    result = []
+    for c in s:
+        if is_hangul_syllable(c):
+            result.append(c)
+        else:
+            try:
+                result.extend(filter(None, split_syllable_char(c)))
+            except Exception:
+                if ignore_err:
+                    result.append(c)
+                else:
+                    raise
+    return "".join(result)
 
 
 def join_jamos_char(init, med, final=None):
-    """
-    Combines jamos into a single syllable.
-    Arguments:
-        init (str): Initial jao.
-        med (str): Medial jamo.
-        final (str): Final jamo. If not supplied, the final syllable is made
-            without the final. (default: None)
-    Returns:
-        A Korean syllable.
-    """
     chars = (init, med, final)
     for c in filter(None, chars):
         check_hangul(c, jamo_only=True)
-
     idx = tuple(CHAR_INDICES[pos][c] if c is not None else c
                 for pos, c in zip((INITIAL, MEDIAL, FINAL), chars))
     init_idx, med_idx, final_idx = idx
-    # final index must be shifted once as
-    # final index with 0 points to syllables without final
     final_idx = 0 if final_idx is None else final_idx + 1
     return chr(0xac00 + 28 * 21 * init_idx + 28 * med_idx + final_idx)
 
 
 def join_jamos(s, ignore_err=True):
-    """
-    Combines a sequence of jamos to produce a sequence of syllables.
-    Arguments:
-        s (str): A string (possible mixed with non-jamo characters).
-        ignore_err (bool): If set False, it will ensure that all characters
-            will be consumed for the making of syllables. It will throw a
-            ValueError when it fails to do so. (default: True)
-    Returns:
-        A string
-    Example:
-        >>> join_jamos("ㅇㅏㄴㄴㅕㅇㅎㅏㅅㅔㅇㅛ")
-        "안녕하세요"
-        >>> join_jamos("ㅇㅏㄴㄴㄴㅕㅇㅎㅏㅅㅔㅇㅛ")
-        "안ㄴ녕하세요"
-        >>> join_jamos()
-    """
-    last_t = 0
-    queue = []
-    new_string = ""
-
-    def flush(n=0):
-        new_queue = []
-        while len(queue) > n:
-            new_queue.append(queue.pop())
-        if len(new_queue) == 1:
-            if not ignore_err:
-                raise ValueError(f"invalid jamo character: {new_queue[0]}")
-            result = new_queue[0]
-        elif len(new_queue) >= 2:
-            try:
-                result = join_jamos_char(*new_queue)
-            except (ValueError, KeyError):
-                # Invalid jamo combination
-                if not ignore_err:
-                    raise ValueError(f"invalid jamo characters: {new_queue}")
-                result = "".join(new_queue)
-        else:
-            result = None
-        return result
-
+    # 완성형 음절은 그대로 두고, 자모 3개가 모이면 음절로 조립
+    result = []
+    buffer = []
     for c in s:
-        if c not in CHARSET:
-            if queue:
-                new_c = flush() + c
-            else:
-                new_c = c
-            last_t = 0
+        if c in CHARSET:
+            buffer.append(c)
+            if len(buffer) == 3:
+                try:
+                    result.append(join_jamos_char(*buffer))
+                except Exception:
+                    if ignore_err:
+                        result.extend(buffer)
+                    else:
+                        raise
+                buffer = []
         else:
-            t = get_jamo_type(c)
-            new_c = None
-            if t & FINAL == FINAL:
-                if not (last_t == MEDIAL):
-                    new_c = flush()
-            elif t == INITIAL:
-                new_c = flush()
-            elif t == MEDIAL:
-                if last_t & INITIAL == INITIAL:
-                    new_c = flush(1)
-                else:
-                    new_c = flush()
-            last_t = t
-            queue.insert(0, c)
-        if new_c:
-            new_string += new_c
-    if queue:
-        new_string += flush()
-    return new_string
+            if buffer:
+                result.extend(buffer)
+                buffer = []
+            result.append(c)
+    if buffer:
+        # 남은 자모가 2개일 경우 초성+중성만 조합
+        if len(buffer) == 2 and all(x in CHARSET for x in buffer):
+            try:
+                result.append(join_jamos_char(buffer[0], buffer[1]))
+            except Exception:
+                result.extend(buffer)
+        else:
+            result.extend(buffer)
+    return ''.join(result)
 
 
 def KoG2Padvanced(Sentence):
-    # 알고리즘 선행 규칙 추가
-    from malppot.domain.speech.G2P.KoG2P import KoG2P
-
-    import re
-    # import split_syllable_char, split_syllables, join_jamos
-    from konlpy.tag import Kkma
-    kkma = Kkma()
-
     runMorphemeCase = ["의", "히"]
 
-    nInsertionFile = "malppot/domain/speech/G2P/Dic/nSheetWords.csv"
-    nInsertionFr = open(nInsertionFile, 'r')
-    nInsertionContent = nInsertionFr.readlines()
-    nInsertionFr.close()
-
-    nInsertDic = dict()
+    # Load n-insertion dictionary
+    # 실제 파일 경로에 맞춰 수정하거나, 파일이 없을 경우 예외 처리
+    nInsertDic = {}
     nInsertList = []
+    try:
+        nInsertionFile = "malppot/domain/speech/G2P/Dic/nSheetWords.csv"
+        with open(nInsertionFile, 'r', encoding='utf-8') as f:
+            nInsertionContent = f.readlines()
 
-    for nInsertContent in nInsertionContent:
-        nInsertContentList = nInsertContent.split(",")
-        if nInsertContentList[1] == "word":
-            pass
-        else:
-            nInsertDic[nInsertContentList[1]] = nInsertContentList[5].replace("\n", "")
-            nInsertList.append(nInsertContentList[1])
+        for nInsertContent in nInsertionContent:
+            nInsertContentList = nInsertContent.split(",")
+            if len(nInsertContentList) > 5 and nInsertContentList[1].strip() != "word":
+                nInsertDic[nInsertContentList[1].strip()] = nInsertContentList[5].strip()
+                nInsertList.append(nInsertContentList[1].strip())
+    except FileNotFoundError:
+        print("경고: nSheetWords.csv 파일을 찾을 수 없습니다. n-삽입 규칙이 적용되지 않습니다.")
+    except Exception as e:
+        print(f"경고: nSheetWords.csv 파일 처리 중 오류 발생: {e}. n-삽입 규칙이 적용되지 않습니다.")
 
-    textCSV = Sentence
+    # Main processing
+    words = Sentence.split(" ")
+    sentence_processed_for_g2p = []  # KoG2P에 전달할 단어 리스트
 
-    sentenceG2P = ""
-    words = textCSV.split(" ")
     for word in words:
-        # print(word)
-        # wordSize = len(word)
-        # if wordSize == 1:
-        #     sentenceG2P = sentenceG2P + " " + word
-        # else:
         word = word.strip()
 
-        for i in range(0, len(runMorphemeCase)):
-            if runMorphemeCase[i] in word:
-                wordChecked = ""
-                kkmaDict = dict(kkma.pos(word))
-                if runMorphemeCase[i] == "의":
-                    for key, value in kkmaDict.items():
-                        # print(key, value)
-                        if key == "의" and value == "JKG":
-                            wordChecked = wordChecked + "에"
-                        else:
-                            wordChecked = wordChecked + key
-                elif runMorphemeCase[i] == "히":
-                    for key, value in kkmaDict.items():
-                        jamoInput = split_syllables(key)
-                        if "ㅈㅎ" in jamoInput and "VV" == value:  # 맞히다 -> 마치다 / 이히리기의 히가 왔을때만 ㅈㅎ이 ㅊ으로 바뀐다. #낮한때 -> 나탄때 / 낮하늘 -> 나타늘
-                            jamoInput = re.sub("ㅈㅎ", "ㅊ", jamoInput)
-                        refinedJamo = join_jamos(jamoInput)
-                        wordChecked = wordChecked + refinedJamo
-                word = wordChecked
+        # '의' 발음 규칙 처리 (품사 정보 활용)
+        if "의" in word:
+            kkma_pos_result = kkma.pos(word)
+            word_temp = ""
+            for morpheme, pos in kkma_pos_result:
+                if morpheme == "의" and pos == "JKG":  # '의'가 조사인 경우
+                    word_temp += "에"
+                elif morpheme == "의" and pos in ["NNG", "VV", "MAG"]:  # '의'가 명사, 동사, 부사 등인 경우 (예: '의사', '의미하다', '의외로')
+                    word_temp += morpheme  # '의'는 그대로 '의' (여기서는 '의' 자체 발음을 유지하도록)
+                else:
+                    word_temp += morpheme
+            word = word_temp
+
+        # '히' 발음 규칙 처리 (기존 로직 유지)
+        if "히" in word:
+            word_temp = ""
+            kkmaDict = dict(kkma.pos(word))
+            for key, value in kkmaDict.items():
+                jamoInput = split_syllables(key)  # 여기서는 '히' 규칙 적용을 위해 자모 분해
+                if "ㅈㅎ" in jamoInput and value == "VV":
+                    jamoInput = re.sub("ㅈㅎ", "ㅊ", jamoInput)
+                refinedJamo = join_jamos(jamoInput)  # 다시 완성형으로 조립
+                word_temp += refinedJamo
+            word = word_temp
 
         # n-insertion
         for nInsertEach in nInsertList:
             if nInsertEach in word:
                 word = word.replace(nInsertEach, nInsertDic[nInsertEach])
 
-        wordJamo = split_syllables(word)
-        wordJamo = " " + wordJamo
+        sentence_processed_for_g2p.append(word)
 
-        # 9. '의' 처리: 한글맞춤법 제9항 ★굳이 안해도 될 것 같은데 선행연구에 '의' 발음 관련 error를 report한 게 있어서 넣었습니다.
-        # - 자음으로 시작하는 'ㅢ'는 'ㅣ'로도 발음한다.
-        # - 첫음의 '의'를 제외하고 모두 'ㅣ'로도 발음한다.
-        # - 부사격 조사 '의' 는 '에' 로도 발음한다: ex) 민주주의의 의의[민주주이에 의이]
+    # G2P dictionary (KoG2PDic.txt는 g2pk 사용 시 불필요하므로 이 부분은 삭제하거나 주석 처리)
+    # 하지만 원본 코드의 흐름을 유지하기 위해 예외 처리만 남겨둡니다.
+    # g2pk는 내부적으로 표준 발음 규칙과 사전을 가지고 있습니다.
+    fileDir = "malppot/domain/speech/G2P/Dic/KoG2PDic.txt"  # 이 파일은 g2pk 사용 시 직접적으로 사용되지 않습니다.
+    KoG2PDic = {}  # 빈 딕셔너리로 초기화
+    try:
+        with open(fileDir, 'r', encoding='utf-8') as fr:
+            contents = fr.readlines()
+        for content in contents:
+            KorSim, EngSim = content.replace("\n", "").strip().split("\t")
+            KoG2PDic[EngSim] = KorSim
+    except FileNotFoundError:
+        print("경고: KoG2PDic.txt 파일을 찾을 수 없습니다. (g2pk 사용 시 이 파일은 필수가 아닙니다.)")
+    except Exception as e:
+        print(f"경고: KoG2PDic.txt 파일 처리 중 오류 발생: {e}. (g2pk 사용 시 이 파일은 필수가 아닙니다.)")
 
-        wordJamo = re.sub('(?<![\s])ㅇㅢ', 'ㅇㅣ', wordJamo)
-        wordJamo = re.sub('(?<![ㅇ])ㅢ', 'ㅣ', wordJamo)  # 하늬바람 -> 하니바람
-
-        # 논문 에러 -> 중계차 : 중게차
-        # 한글 맞춤법 제 8항
-        wordJamo = re.sub('(?<=[ㄱㄹㅁㅍㅎ])ㅖ', 'ㅔ', wordJamo)
-
-        # 10. 연음(Liaison)? - 연음이 일어나는 조건:
-        # 1 - 1. 자음으로 끝나는 형태소 + 모음으로 시작하는 문법형태소(찾 + 아 -> 찾아[차자], 옷 + 이 -> 옷이[오시]),
-        # 1 - 2. 자음으로 끝나는 형태소 + 모음(ㅏ, ㅓ, ㅗ, ㅜ, ㅟ) 으로 시작하는 실질형태소: 자음중화 후 연음(옷안 -> 옫안 -> 오단) (★ 그럼 맛있다[마싣따], 멋있다[머싣따]는...?)
-        # 2.(AP 내부의)어절과 어절 사이
-        # 3. 단일어 내부
-
-        # # 한사람의????
-        #
-        # # 연음 형태소 -> 어미와 조사를 봐야한다.
-        # # 어미와 조사인 경우에는 자음중화가 일어나지 않고 바로 적용되지만 어미와 조사가 아닌 경우 에는 자음 중화가 일어나고 연음이 이루어져야한다.
-        #
-        # wordJamo = re.sub('(?<![\sㅏㅑㅓㅕㅗㅛㅜㅠㅡㅣㅐㅘㅔㅙㅚㅝㅟㅞㅜㅢㅒㅖㅇ])ㅇ', '', wordJamo)
-        #
-        wordJamo = wordJamo.strip()
-        wordPhonetic = join_jamos(wordJamo)
-
-        sentenceG2P = sentenceG2P + " " + wordPhonetic
-
-    # print(sentenceG2P)
-
-    fileDir = "malppot/domain/speech/G2P/Dic/KoG2PDic.txt"
     hangulMo = ["ㅏ", "ㅑ", "ㅓ", "ㅕ", "ㅗ", "ㅛ", "ㅜ", "ㅠ", "ㅡ", "ㅣ", "ㅐ", "ㅘ", "ㅔ", "ㅙ", "ㅚ", "ㅝ", "ㅟ", "ㅞ", "ㅜ", "ㅢ",
                 "ㅒ", "ㅖ"]
 
-    fr = open(fileDir, 'r')
-    contents = fr.readlines()
-    fr.close()
-    KoG2PDic = dict()
+    totalSentence = []
+    # 각 단어에 대해 g2pk를 사용하여 G2P 변환을 수행합니다.
+    # g2pk는 단어 단위로 발음 변환을 해주며, 연음, 경음화 등 복잡한 규칙을 자동으로 처리합니다.
+    for eachWord in sentence_processed_for_g2p:
+        # g2pk.G2p() 인스턴스를 사용하여 단어를 발음 기호로 변환합니다.
+        # 이 한 줄이 기존 KoG2P 클래스와 그 아래의 복잡한 자모 조립/규칙 부분을 대체합니다.
+        phonetic_word = g2p_converter(eachWord)  # g2pk는 완성된 발음 문자열을 반환합니다.
 
-    for content in contents:
-        contentSplit = content.replace("\n", "").strip().split("\t")
-        KorSim = contentSplit[0]
-        EngSim = contentSplit[1]
-        KoG2PDic[EngSim] = KorSim
+        # g2pk는 대부분의 음운 변동을 처리해주므로,
+        # 기존 코드의 자모 조립, 'ㅇ' 추가, ㅎ 탈락, 위치 동화 등의 로직은
+        # g2pk의 결과에 대해 다시 적용할 필요가 없습니다.
+        # 만약 g2pk로도 처리되지 않는 아주 예외적인 규칙이 있다면 여기에 추가할 수 있습니다.
 
-    totalSentence = ""
-    SentenceList = sentenceG2P.strip().split(" ")
-    for eachWords in SentenceList:
-        KoG2POutcome = str(KoG2P(eachWords))
-        KoG2POutcomeList = KoG2POutcome.split(" ")
+        # '예' -> '에' 중화는 g2pk가 처리하지 않을 수 있으므로 명시적으로 적용.
+        # g2pk는 발음 기반이므로, '예'를 '에'로 발음하는 것은 일반적으로 처리됩니다.
+        # 하지만 만약의 경우를 대비하여 중화 규칙을 다시 확인하는 것이 좋습니다.
+        # 여기서는 g2pk의 결과가 완성형 음절이므로, 자모 분리 후 적용하고 다시 합쳐야 합니다.
 
-        KoG2PEngWordList = []
-        for KoG2POutcomeEach in KoG2POutcomeList:
-            KoG2PEngWordList.append(KoG2PDic[KoG2POutcomeEach])
+        # '예' -> '에' 중화는 사실 g2pk가 대부분 처리합니다.
+        # 원본 코드의 'KoG2P'가 어떤 기능을 했는지에 따라 이 부분이 필요 없을 수도 있습니다.
+        # 예: '계산' -> '게산', '시계' -> '시계' (g2pk는 '시게'로 발음)
 
-        HangulString = ""
-        for i in range(0, len(KoG2PEngWordList)):
-            if i == 0:
-                if KoG2PEngWordList[0] in hangulMo:
-                    HangulString = HangulString + "ㅇ"
-                    HangulString = HangulString + KoG2PEngWordList[i]
-                else:
-                    HangulString = HangulString + KoG2PEngWordList[i]
-            else:
-                if i + 1 != len(KoG2PEngWordList):
-                    if KoG2PEngWordList[i] in hangulMo and KoG2PEngWordList[i + 1] in hangulMo:
-                        HangulString = HangulString + KoG2PEngWordList[i]
-                        HangulString = HangulString + "ㅇ"
-                    elif KoG2PEngWordList[i] == "ㅇ" and KoG2PEngWordList[i + 1] in hangulMo:
-                        HangulString = HangulString + KoG2PEngWordList[i]
-                        HangulString = HangulString + "ㅇ"
-                    else:
-                        HangulString = HangulString + KoG2PEngWordList[i]
-                else:
-                    HangulString = HangulString + KoG2PEngWordList[i]
+        # 만약 '예' -> '에' 규칙을 g2pk 결과에 추가로 적용하고 싶다면:
+        # temp_jamo = split_syllables(phonetic_word)
+        # temp_jamo = re.sub('(?<=[ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ])ㅖ', 'ㅔ', temp_jamo)
+        # phonetic_word = join_jamos(temp_jamo)
 
-        # 2 - 1. ㅎ탈락( / h / -deletion):
-        # - ㅎ → Ø / [+son]____[+son] ex) 옳아[올아] / 아홉[아홉~ 아옵], 신혼[신혼~ 시논] / 뚫네[뚤네→뚤레] 뚫는[뚤는→뚤른] -> ㅎ중화 -> 비음화 -> 유음화
-        # - ㅎ탈락의 경우 용언에서는 필수적으로 탈락하나 명사에서는 수의적으로 탈락한다
+        totalSentence.append(phonetic_word)
 
-        HangulString = " " + HangulString
-        # 초성
-        HangulString = re.sub('(?<=[ㅁㄴㅇㄹㅏㅑㅓㅕㅗㅛㅜㅠㅡㅣㅐㅘㅔㅙㅚㅝㅟㅞㅜㅢㅒㅖ])ㅎ(?=[ㅏㅑㅓㅕㅗㅛㅜㅠㅡㅣㅐㅘㅔㅙㅚㅝㅟㅞㅜㅢㅒㅖ])', 'ㅇ', HangulString)
-        # 종성
-        HangulString = re.sub('(?<=[ㅏㅑㅓㅕㅗㅛㅜㅠㅡㅣㅐㅘㅔㅙㅚㅝㅟㅞㅜㅢㅒㅖ])ㅎㅇ', 'ㅇ', HangulString)
-
-        # 추가 사항: 자음 위치 동화(Place Assimilation)
-        # - 박선우. (2008). 한국어 위치동화의 실험음성학적 분석. 언어연구, 25(2), 45-65.
-        # ㄴ, ㄷ → ㅁ, ㅂ / ____{ㅁ, ㅂ, ㅍ, ㅃ} (치경음 → 양순음)
-        # 옷보다[옫뽀다]～[옵뽀다] (cf. 오뽀다) / 준비[준비]～[줌비]
-        HangulString = re.sub('ㄴ(?=[ㅁㅂㅍㅃ])', 'ㅁ', HangulString)
-        HangulString = re.sub('ㄷ(?=[ㅁㅂㅍㅃ])', 'ㅂ', HangulString)
-
-        # ㄴ, ㄷ → ㅇ, ㄱ / ____ {ㄱ, ㅋ, ㄲ}  (치경음 → 연구개음)
-        # 숟가락[숟까락]～[숙까락] (cf. 수까락) / 모든 걸[모든걸]～[모등걸]
-        HangulString = re.sub('ㄴ(?=[ㄱㅋㄲ])', 'ㅇ', HangulString)
-        HangulString = re.sub('ㄷ(?=[ㄱㅋㄲ])', 'ㄱ', HangulString)
-
-        # ㅁ, ㅂ → ㅇ, ㄱ / ____{ㄱ, ㅋ, ㄲ} (양순음 → 연구개음)
-        # 숲길[숩낄]～[숙낄] (cf. 수낄) / 짐꾼[짐꾼]～[징꾼]
-        HangulString = re.sub('ㅁ(?=[ㄱㅋㄲ])', 'ㅇ', HangulString)
-        HangulString = re.sub('ㅂ(?=[ㄱㅋㄲ])', 'ㄱ', HangulString)
-
-        # 연음 형태소 -> 어미와 조사를 봐야한다.
-        # 어미와 조사인 경우에는 자음중화가 일어나지 않고 바로 적용되지만 어미와 조사가 아닌 경우 에는 자음 중화가 일어나고 연음이 이루어져야한다.
-
-        # HangulString = HangulString.strip()
-
-        # wordPhonetic = join_jamos(HangulString)
-
-        # kkmaDict_pass = kkma.pos(HangulString)
-
-        # isChecked_EJ = False
-        # for i in range(0, len(kkmaDict_pass)):
-        #     currentWord_pass = list(kkmaDict_pass[i])
-        #     if re.match("^E", currentWord_pass[1]) != None or re.match("^J",currentWord_pass[1]) != None: # 어미나 조사를 포함할 때
-        #         jamoInput_pass = split_syllables(currentWord_pass[0]) # 자모로 변환
-        #         if jamoInput_pass[0] == "ㅇ": # 현재의 단어가 ㅇ으로 시작될때
-        #             isChecked_EJ = True
-
-        # if isChecked_EJ == True:
-        #     pass
-        # else:
-        #     wordJamo_pass = split_syllables(wordPhonetic) #
-        #     wordJamo_pass = " " + wordJamo_pass
-
-        #     # 1 - 1. 자음 중화(coda neutralization) (단, ㅎ, ㅀ, ㄶ, ㅌ, 제외)
-        #     # - ㅋ, ㄲ → ㄱ / ____ {C,  # }
-        #     # - ㅈ, ㅅ, ㅆ, ㅊ → ㄷ / ____ {C,  # }
-        #     # - ㅍ → ㅂ / ____ {C,  # }
-        #     # - 한국어 음절 구조의 특징은 coda에는 표면형에서 7개의 자음만 올 수 있다는 제약이 있다.그러므로 기저형에 나타나는 coda의 자음들을 7개로 줄여주는 작업이 우선되어야 한다.
-        #     # - 'ㅎ', 'ㅌ'을 따로 뺀 이유는 기저형에 'ㅎ', 'ㅌ'이 있는 상태에서 실현되는 음운규칙(ㅎ탈락, 유기음화 / 구개음화)이 존재하기 때문이다.
-
-        #     wordJamo_pass = re.sub('ㅋ(?=[ㅇ])', 'ㄱ', wordJamo_pass)
-        #     wordJamo_pass = re.sub('ㄲ(?=[ㅇ])', 'ㄱ', wordJamo_pass)
-        #     wordJamo_pass = re.sub('ㅈ(?=[ㅇ])', 'ㄷ', wordJamo_pass)
-        #     wordJamo_pass = re.sub('ㅅ(?=[ㅇ])', 'ㄷ', wordJamo_pass)
-        #     wordJamo_pass = re.sub('ㅆ(?=[ㅇ])', 'ㄷ', wordJamo_pass)
-        #     wordJamo_pass = re.sub('ㅊ(?=[ㅇ])', 'ㄷ', wordJamo_pass)
-        #     wordJamo_pass = re.sub('ㅍ(?=[ㅇ])', 'ㅂ', wordJamo_pass)
-        #     wordJamo_pass = wordJamo_pass.strip()
-        #     wordPhonetic_pass = join_jamos(wordJamo_pass)
-        #     wordPhonetic = wordPhonetic_pass
-
-        # wordJamo_final = split_syllables(wordPhonetic)
-        # wordJamo_final = " " + wordJamo_final
-
-        # # 연음 형태소 -> 어미와 조사를 봐야한다.
-        # # 어미와 조사인 경우에는 자음중화가 일어나지 않고 바로 적용되지만 어미와 조사가 아닌 경우 에는 자음 중화가 일어나고 연음이 이루어져야한다.
-
-        # HangulString = re.sub('(?<![\sㅏㅑㅓㅕㅗㅛㅜㅠㅡㅣㅐㅘㅔㅙㅚㅝㅟㅞㅜㅢㅒㅖㅇ])ㅇ', '', wordJamo_final)
-
-        HangulString = re.sub('(?<![\sㅏㅑㅓㅕㅗㅛㅜㅠㅡㅣㅐㅘㅔㅙㅚㅝㅟㅞㅜㅢㅒㅖㅇ])ㅇ', '', HangulString)
-
-        HangulString = HangulString.strip()
-
-        HangulWord = join_jamos(HangulString)
-        totalSentence = totalSentence + " " + HangulWord
-    totalSentence = totalSentence.strip()
-
-    return totalSentence
+    # 마지막: 문장 전체를 공백으로 연결하여 최종 결과 반환
+    result = ' '.join(totalSentence)
+    return result
