@@ -32,19 +32,24 @@ class AuthService:
 
     def register_user(self, google_id, email, name, profile_image_url):
         session = self.db.get_session()
-        if session.query(User).filter(User.google_id == google_id).first():
-            raise ValueError("User with id {} already exists".format(google_id))
-        if session.query(User).filter(User.email == email).first():
-            raise ValueError("User email is already exist")
+        try:
+            existing_user = session.query(User).filter(User.google_id == google_id).first()
+            if existing_user:
+                raise ValueError(f"User with google_id {google_id} already exists")
 
-        new_user = User(
-            google_id=google_id,
-            email=email,
-            name=name,
-            profile_image_url=profile_image_url
-        )
-        session.add(new_user)
-        session.commit()
-        session.refresh(new_user)
-        session.close()
-        return new_user
+            existing_email = session.query(User).filter(User.email == email).first()
+            if existing_email:
+                raise ValueError(f"User email {email} already exists")
+
+            new_user = User(
+                google_id=google_id,
+                email=email,
+                name=name,
+                profile_image_url=profile_image_url
+            )
+            session.add(new_user)
+            session.commit()
+            session.refresh(new_user)
+            return new_user
+        finally:
+            session.close()
