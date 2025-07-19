@@ -33,36 +33,3 @@ pip install -r requirements.txt
 [Git/Github 사용하기](docs/git.md)
 
 ## 프로젝트 구조
-
-## 도커
-
-### 도커 설치
-```bash
-sudo apt-get update
-mkdir -p ~/.docker/cli-plugins
-
-curl -SL https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-$(uname -m) \
-  -o ~/.docker/cli-plugins/docker-compose
-
-chmod +x ~/.docker/cli-plugins/docker-compose
-
-sudo mkdir -p /usr/local/lib/docker/cli-plugins
-sudo mv ~/.docker/cli-plugins/docker-compose /usr/local/lib/docker/cli-plugins/docker-compose
-sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-
-docker compose version
-```
-
-### 도커 이미지 빌드
-```bash
-sudo docker compose build --no-cache
-```
-linux라면 sudo 붙여서 진행 (도커 데몬 권한)
-
-### 그 외 명령어
-```bash
-docker-compose up -d
-```
-```bash
-docker-compose down -v
-```
