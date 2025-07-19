@@ -5,7 +5,9 @@
 ## 개발환경 설정하기
 
 ### 파이썬 버전 확인하기
+
 파이썬 버전: 3.11.4 이상이어야 합니다.
+
 ```bash
 $ python3 --version
 Python 3.11.4
@@ -32,4 +34,8 @@ pip install -r requirements.txt
 
 [Git/Github 사용하기](docs/git.md)
 
-## 프로젝트 구조
+## Reference
+
+- [SpeechFeedback](https://github.com/DevTae/SpeechFeedback)
+    - License: Apache License 2.0
+    - 사용 목적: 혀, 입 모양 매핑 데이터 활용
