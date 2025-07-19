@@ -121,7 +121,7 @@ class SpeechService:
                     continue
 
                 jobs = make_lips_jobs_from_sequence(seq)
-                
+
                 video_urls = []
                 for job in jobs:
                     if job['segment'] == '단독':
