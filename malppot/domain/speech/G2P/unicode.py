@@ -1,6 +1,9 @@
+# 참고: SpeechFeedback(https://github.com/DevTae/SpeechFeedback) 의 혀, 입 모양 매핑 데이터
+# License: Apache License 2.0
+
 __all__ = ["split_syllable_char", "split_syllables",
-       "join_jamos", "join_jamos_char",
-       "CHAR_INITIALS", "CHAR_MEDIALS", "CHAR_FINALS"]
+           "join_jamos", "join_jamos_char",
+           "CHAR_INITIALS", "CHAR_MEDIALS", "CHAR_FINALS"]
 
 import itertools
 

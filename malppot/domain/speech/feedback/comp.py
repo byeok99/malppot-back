@@ -1,3 +1,6 @@
+# 참고: SpeechFeedback(https://github.com/DevTae/SpeechFeedback) 의 혀, 입 모양 매핑 데이터
+# License: Apache License 2.0
+
 import os
 import re
 

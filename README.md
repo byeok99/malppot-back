@@ -39,3 +39,23 @@ pip install -r requirements.txt
 - [SpeechFeedback](https://github.com/DevTae/SpeechFeedback)
     - License: Apache License 2.0
     - 사용 목적: 혀, 입 모양 매핑 데이터 활용
+
+## Third-Party APIs & Services
+
+- **Azure Speech Punctuation API**
+    - 유형: 유료 API (Microsoft Azure)
+    - 사용 목적: 사용자의 발음 평가
+    - 라이선스/이용약관: [Microsoft Azure Terms](https://azure.microsoft.com/en-us/support/legal/)
+    - 참고: API 이용에는 별도의 요금이 발생할 수 있으며, Microsoft의 정책을 따라야 합니다.
+
+- **OpenAI API**
+    - 유형: 유료 API
+    - 사용 목적: 사용자 실시간 음성대화 처리
+    - 라이선스/이용약관: [OpenAI API Terms of Use](https://openai.com/policies/terms-of-use)
+    - 참고: API 이용 시 OpenAI의 정책과 요금제, 사용 제한 조건을 준수해야 합니다.
+
+- **Replicate API**
+    - 유형: 유료 API
+    - 사용 목적: 혀, 입 모양 매핑 데이터를 기반으로 실시간 입모양, 혀 모양 생성
+    - 라이선스/이용약관: [Replicate Terms of Service](https://replicate.com/terms)
+    - 참고: 해당 API를 이용할 때 Replicate의 이용약관 및 과금 정책을 반드시 확인하시기 바랍니다.

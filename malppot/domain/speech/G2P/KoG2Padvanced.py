@@ -1,3 +1,6 @@
+# 참고: SpeechFeedback(https://github.com/DevTae/SpeechFeedback) 의 혀, 입 모양 매핑 데이터
+# License: Apache License 2.0
+
 __all__ = ["split_syllable_char", "split_syllables",
            "join_jamos", "join_jamos_char",
            "CHAR_INITIALS", "CHAR_MEDIALS", "CHAR_FINALS"]
@@ -267,19 +270,13 @@ def join_jamos(s, ignore_err=True):
         new_string += flush()
     return new_string
 
-def KoG2Padvanced(Sentence):
 
+def KoG2Padvanced(Sentence):
     # 알고리즘 선행 규칙 추가
     from malppot.domain.speech.G2P.KoG2P import KoG2P
-    import os
-    import json
-    import re
-    import jamo
 
-    import sys, os, re, codecs, string
-    import unicodedata
+    import re
     # import split_syllable_char, split_syllables, join_jamos
-    from jamo import h2j, j2hcj
     from konlpy.tag import Kkma
     kkma = Kkma()
 
@@ -504,17 +501,3 @@ def KoG2Padvanced(Sentence):
     totalSentence = totalSentence.strip()
 
     return totalSentence
-
-
-
-
-
-
-
-
-
-
-
-
-
-

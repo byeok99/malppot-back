@@ -1,5 +1,7 @@
-def KoG2P(graph):
+# 참고: SpeechFeedback(https://github.com/DevTae/SpeechFeedback) 의 혀, 입 모양 매핑 데이터
+# License: Apache License 2.0
 
+def KoG2P(graph):
     # -*- coding: utf-8 -*-
     '''
     g2p.py
@@ -29,11 +31,9 @@ def KoG2P(graph):
 
     '''
 
-    import datetime as dt
     import re
     import math
     import sys
-    import optparse
 
     # # Option
     # parser = optparse.OptionParser()
@@ -292,6 +292,3 @@ def KoG2P(graph):
     sentenceG2P = runKoG2P(graph, 'malppot/domain/speech/G2P/Dic/rulebook.txt')
 
     return sentenceG2P
-
-
-
