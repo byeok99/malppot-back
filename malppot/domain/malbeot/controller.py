@@ -14,6 +14,10 @@ router = APIRouter()
 
 async def _close_websocket_with_error(websocket: WebSocket, reason: str, code: int = status.WS_1008_POLICY_VIOLATION):
     logger.warning(f"Closing WebSocket connection: {reason}")
+    await websocket.send_json({
+        "type": "error",
+        "message": reason
+    })
     await websocket.close(code=code, reason=reason)
 
 
