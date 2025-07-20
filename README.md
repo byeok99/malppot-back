@@ -42,7 +42,7 @@ pip install -r requirements.txt
 
 ## Third-Party APIs & Services
 
-- **Azure Speech Punctuation API**
+- **Azure Speech Assessment API**
     - 유형: 유료 API (Microsoft Azure)
     - 사용 목적: 사용자의 발음 평가
     - 라이선스/이용약관: [Microsoft Azure Terms](https://azure.microsoft.com/en-us/support/legal/)
