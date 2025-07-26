@@ -8,12 +8,13 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from malppot.common.errors import CustomException
+from malppot.common.middleware import JWTMiddleware
 from malppot.di import DI
 
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.append(str(PROJECT_ROOT))
 app = FastAPI()
-
+app.add_middleware(JWTMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -49,8 +50,6 @@ wiring.wire(
     ]
 )
 
-
-# app.add_middleware(JWTMiddleware)
 
 @app.exception_handler(CustomException)
 async def custom_exception_handler(request: Request, exc: CustomException):
