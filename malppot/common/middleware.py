@@ -1,10 +1,14 @@
-from fastapi import Request, Response, status
+import logging
+
 import jwt
+from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
+
 from malppot.di import DI
-import logging
+
 logger = logging.getLogger(__name__)
+
 
 class JWTMiddleware(BaseHTTPMiddleware):
     def __init__(self, app):
@@ -13,7 +17,7 @@ class JWTMiddleware(BaseHTTPMiddleware):
         self.algorithm = DI.config.jwt.algorithm()
 
     async def dispatch(self, request: Request, call_next):
-        open_paths = ["/auth", "/docs", "/redoc", "/openapi.json"]
+        open_paths = ["/auth", "/docs", "/redoc", "/openapi.json", "/static"]
         if any(request.url.path.startswith(path) for path in open_paths):
             return await call_next(request)
 
