@@ -78,7 +78,7 @@ class SpeechService:
 
                 for job in jobs:
                     if job['segment'] == '단독':
-                        frame1_path = job['frame1']
+                        frame1_path = job['frame']
                         # URL, 경로 뭐든 파일명만 뽑아서 씀
                         filename = os.path.basename(frame1_path)
                         video_url = f"/static/images/{filename}"
