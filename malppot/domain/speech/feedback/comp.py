@@ -89,6 +89,83 @@ def tag_jamo_roles(hangul: str) -> list[dict]:
     return result
 
 
+# def make_tongue_jobs_for_syllable(ch: str) -> list[dict]:
+#     roles = tag_jamo_roles(ch)
+#     onset = next((j for j in roles if j["position"] == "초성"), None)
+#     vowel = next((j for j in roles if j["position"] == "중성"), None)
+#     coda = next((j for j in roles if j["position"] == "종성"), None)
+#     jobs = []
+#
+#     def path(j):
+#         if j and j["jamo"] in {"ㅅ", "ㅆ"} and j["position"] == "초성":
+#             v = vowel["jamo"] if vowel else ""
+#             key = get_sibilant_key(j["jamo"], v)
+#             return VISEME_TABLE.get(key, "")
+#         if j and j["jamo"] == "ㅎ" and j["position"] == "초성":
+#             return None
+#         return VISEME_TABLE.get(j["jamo"], "") if j else ""
+#
+#     # [1] 초성→중성
+#     if onset and vowel:
+#         if onset["jamo"] == "ㅎ":
+#             frame1 = path(vowel)
+#             frame2 = path(vowel)
+#         else:
+#             frame1 = path(onset)
+#             frame2 = path(vowel)
+#
+#         if frame1 and frame2:
+#             if frame1 == frame2:
+#                 # [중요] 동영상이 아니라 이미지 job을 만든다
+#                 file_name = get_filename_from_url(frame1)  # 예: 'ㅏ.png'
+#                 jobs.append({
+#                     "letter": ch,
+#                     "frame1": f"https://api.malppot.com/static/images/{frame1}",
+#                     "frame2": None,
+#                     "segment": "단독",
+#                     "type": "image",
+#                     "output": file_name
+#                 })
+#             else:
+#                 file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
+#                 jobs.append({
+#                     "letter": ch,
+#                     "frame1": f"https://api.malppot.com/static/images/{frame1}",
+#                     "frame2": f"https://api.malppot.com/static/images/{frame2}",
+#                     "segment": "초성중성",
+#                     "type": "video",
+#                     "output": file_name
+#                 })
+#
+#     # [2] 중성→종성 (기존 방식, 필요시 동일 프레임도 분리 가능)
+#     if vowel and coda and path(vowel) and path(coda):
+#         frame1 = path(vowel)
+#         frame2 = path(coda)
+#         if frame1 == frame2:
+#             file_name = get_filename_from_url(frame1)
+#             jobs.append({
+#                 "letter": ch,
+#                 "frame": f"https://api.malppot.com/static/images/{frame1}",
+#                 "segment": "중성종성",
+#                 "type": "image",
+#                 "output": file_name
+#             })
+#         else:
+#             file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
+#             jobs.append({
+#                 "letter": ch,
+#                 "frame1": f"https://api.malppot.com/static/images/{frame1}",
+#                 "frame2": f"https://api.malppot.com/static/images/{frame2}",
+#                 "segment": "중성종성",
+#                 "type": "video",
+#                 "output": file_name
+#             })
+#
+#     return jobs
+
+TONGUE_STATIC_ONSETS = {"ㅁ", "ㅂ", "ㅃ", "ㅍ", "ㅇ"}  # 혀가 고정되거나 거의 사용되지 않음
+
+
 def make_tongue_jobs_for_syllable(ch: str) -> list[dict]:
     roles = tag_jamo_roles(ch)
     onset = next((j for j in roles if j["position"] == "초성"), None)
@@ -97,50 +174,56 @@ def make_tongue_jobs_for_syllable(ch: str) -> list[dict]:
     jobs = []
 
     def path(j):
-        if j and j["jamo"] in {"ㅅ", "ㅆ"} and j["position"] == "초성":
+        if not j:
+            return ""
+        if j["jamo"] in {"ㅅ", "ㅆ"} and j["position"] == "초성":
             v = vowel["jamo"] if vowel else ""
             key = get_sibilant_key(j["jamo"], v)
             return VISEME_TABLE.get(key, "")
-        if j and j["jamo"] == "ㅎ" and j["position"] == "초성":
-            return None
-        return VISEME_TABLE.get(j["jamo"], "") if j else ""
+        if j["jamo"] == "ㅎ" and j["position"] == "초성":
+            return None  # ㅎ은 생략
+        return VISEME_TABLE.get(j["jamo"], "")
 
-    # [1] 초성→중성
+    # [1] 초성 → 중성
     if onset and vowel:
-        if onset["jamo"] == "ㅎ":
-            frame1 = path(vowel)
-            frame2 = path(vowel)
+        onset_jamo = onset["jamo"]
+        vowel_jamo = vowel["jamo"]
+        frame1 = path(onset)
+        frame2 = path(vowel)
+
+        # 생략 조건
+        if not frame2:
+            return jobs
+
+        # 혀 고정 자음 또는 프레임이 동일할 경우 → 단독 이미지
+        if onset_jamo in TONGUE_STATIC_ONSETS or not frame1 or frame1 == frame2:
+            file_name = get_filename_from_url(frame2)
+            jobs.append({
+                "letter": ch,
+                "frame": f"https://api.malppot.com/static/images/{frame2}",
+                "segment": "단독",
+                "type": "image",
+                "output": file_name
+            })
         else:
-            frame1 = path(onset)
-            frame2 = path(vowel)
+            file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
+            jobs.append({
+                "letter": ch,
+                "frame1": f"https://api.malppot.com/static/images/{frame1}",
+                "frame2": f"https://api.malppot.com/static/images/{frame2}",
+                "segment": "초성중성",
+                "type": "video",
+                "output": file_name
+            })
 
-        if frame1 and frame2:
-            if frame1 == frame2:
-                # [중요] 동영상이 아니라 이미지 job을 만든다
-                file_name = get_filename_from_url(frame1)  # 예: 'ㅏ.png'
-                jobs.append({
-                    "letter": ch,
-                    "frame1": f"https://api.malppot.com/static/images/{frame1}",
-                    "frame2": None,
-                    "segment": "단독",
-                    "type": "image",
-                    "output": file_name
-                })
-            else:
-                file_name = f"{get_filename_from_url(frame1)}_{get_filename_from_url(frame2)}.mp4"
-                jobs.append({
-                    "letter": ch,
-                    "frame1": f"https://api.malppot.com/static/images/{frame1}",
-                    "frame2": f"https://api.malppot.com/static/images/{frame2}",
-                    "segment": "초성중성",
-                    "type": "video",
-                    "output": file_name
-                })
-
-    # [2] 중성→종성 (기존 방식, 필요시 동일 프레임도 분리 가능)
-    if vowel and coda and path(vowel) and path(coda):
+    # [2] 중성 → 종성
+    if vowel and coda:
         frame1 = path(vowel)
         frame2 = path(coda)
+
+        if not frame1 or not frame2:
+            return jobs
+
         if frame1 == frame2:
             file_name = get_filename_from_url(frame1)
             jobs.append({
