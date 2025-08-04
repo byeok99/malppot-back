@@ -18,7 +18,7 @@ class DatabaseSession:
 
         self.DATABASE_URL = f"{self.driver}://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
 
-        self.engine = create_engine(self.DATABASE_URL, echo=False)
+        self.engine = create_engine(self.DATABASE_URL, pool_pre_ping=True, pool_recycle=1800, echo=False)
 
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
 
