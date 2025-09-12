@@ -3,7 +3,8 @@ from fastapi import APIRouter, Request, Response, Depends
 
 from malppot.common.di_providers import (
     get_auth_service_from_di,
-    get_jwt_service_from_di
+    get_jwt_service_from_di,
+    get_speech_service_from_di
 )
 from malppot.common.errors import (
     MissingAuthCodeException,
@@ -23,6 +24,7 @@ async def login(
         response: Response,
         auth_service=Depends(get_auth_service_from_di),
         jwt_service=Depends(get_jwt_service_from_di),
+        speech_service=Depends(get_speech_service_from_di)
 ) -> dict[str, str]:
     info = auth_service.get_google_auth_info()
 
