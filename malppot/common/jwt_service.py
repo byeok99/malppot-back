@@ -18,8 +18,9 @@ class JWTService:
     def create_access_token(self, user_id: int) -> str:
         payload = {
             "sub": user_id,
-            "exp": datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=self.access_token_expire_minutes),
-            "iat": datetime.datetime.now(datetime.UTC),
+            "exp": datetime.datetime.now(datetime.datetime.utc) + datetime.timedelta(
+                minutes=self.access_token_expire_minutes),
+            "iat": datetime.datetime.now(datetime.datetime.utc),
         }
 
         return jwt.encode(payload, self.secret_key, algorithm=self.algorithm)
@@ -27,8 +28,9 @@ class JWTService:
     def create_refresh_token(self, user_id: int) -> str:
         payload = {
             "sub": user_id,
-            "exp": datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=self.refresh_token_expire_days),
-            "iat": datetime.datetime.now(datetime.UTC),
+            "exp": datetime.datetime.now(datetime.datetime.utc) + datetime.timedelta(
+                days=self.refresh_token_expire_days),
+            "iat": datetime.datetime.now(datetime.datetime.utc),
         }
 
         return jwt.encode(payload, self.secret_key, algorithm=self.algorithm)
