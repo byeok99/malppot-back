@@ -14,18 +14,17 @@ from malppot.di import DI
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.append(str(PROJECT_ROOT))
 app = FastAPI()
-app.add_middleware(JWTMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5174",
         "https://www.malppot.com",
-        "https://malppot.com"]
-    ,
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(JWTMiddleware)
 
 app.mount("/static", StaticFiles(directory=f"{PROJECT_ROOT}/malppot/static"), name="static")
 
