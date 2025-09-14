@@ -8,7 +8,6 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from malppot.common.errors import CustomException
-from malppot.common.middleware import JWTMiddleware
 from malppot.di import DI
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -24,7 +23,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(JWTMiddleware)
+# app.add_middleware(JWTMiddleware)
 
 app.mount("/static", StaticFiles(directory=f"{PROJECT_ROOT}/malppot/static"), name="static")
 
