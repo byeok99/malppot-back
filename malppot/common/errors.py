@@ -1,10 +1,12 @@
 from fastapi import HTTPException, status
 
+
 class ErrorCode:
     # Auth
     MISSING_AUTH_CODE = "Missing authorization code."
     FAILED_GET_ACCESS_TOKEN_GOOGLE = "Failed to get access token from Google."
     FAILED_GET_USER_INFO_GOOGLE = "Failed to get user info from Google."
+    REJECT_REGISTER_USER = "서비스가 운영중이지 않습니다."
     INVALID_OR_EXPIRED_TOKEN = "Invalid or expired token."
     AUTHENTICATION_TOKEN_MISSING = "Authentication token missing."
     INVALID_CREDENTIALS = "Invalid credentials."
@@ -51,6 +53,11 @@ class FailedGoogleUserInfoException(CustomException):
         super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
 
+class rejectRegisterUser(CustomException):
+    def __init(self, detail: str = ErrorCode.REJECT_REGISTER_USER):
+        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+
 class InvalidTokenException(CustomException):
     def __init__(self, detail: str = ErrorCode.INVALID_OR_EXPIRED_TOKEN):
         super().__init__(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
@@ -76,35 +83,44 @@ class MalbeotChatException(CustomException):
     def __init__(self, detail: str = ErrorCode.MALBEOT_CHAT_FAILED):
         super().__init__(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
 
+
 class MalbeotModelException(CustomException):
     def __init__(self, detail: str = ErrorCode.MALBEOT_MODEL_ERROR):
         super().__init__(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
+
 
 # Speech 관련 커스텀 예외
 class SpeechEvaluationException(CustomException):
     def __init__(self, detail: str = ErrorCode.SPEECH_EVALUATION_FAILED):
         super().__init__(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
 
+
 class SpeechAudioProcessingException(CustomException):
     def __init__(self, detail: str = ErrorCode.SPEECH_AUDIO_PROCESSING_ERROR):
         super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
 
 # Heygen 관련 커스텀 예외
 class HeygenVideoCreationException(CustomException):
     def __init__(self, detail: str = ErrorCode.HEYGEN_VIDEO_CREATION_FAILED):
         super().__init__(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
 
+
 class HeygenVideoStatusException(CustomException):
     def __init__(self, detail: str = ErrorCode.HEYGEN_VIDEO_STATUS_CHECK_FAILED):
         super().__init__(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
 
+
 class HeygenApiException(CustomException):
-    def __init__(self, detail: str = ErrorCode.HEYGEN_API_ERROR, status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR):
+    def __init__(self, detail: str = ErrorCode.HEYGEN_API_ERROR,
+                 status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR):
         super().__init__(status_code=status_code, detail=detail)
+
 
 class HeygenVideoNotReadyException(CustomException):
     def __init__(self, detail: str = ErrorCode.HEYGEN_VIDEO_NOT_READY):
-        super().__init__(status_code=status.HTTP_202_ACCEPTED, detail=detail) # 202 Accepted는 진행 중임을 의미
+        super().__init__(status_code=status.HTTP_202_ACCEPTED, detail=detail)  # 202 Accepted는 진행 중임을 의미
+
 
 class HeygenRequestException(CustomException):
     def __init__(self, detail: str = ErrorCode.HEYGEN_REQUEST_FAILED, status_code: int = status.HTTP_400_BAD_REQUEST):
@@ -115,6 +131,7 @@ class HeygenRequestException(CustomException):
 class MyPageDataNotFoundException(CustomException):
     def __init__(self, detail: str = ErrorCode.MYPAGE_DATA_NOT_FOUND):
         super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+
 
 class MyPageUpdateException(CustomException):
     def __init__(self, detail: str = ErrorCode.MYPAGE_UPDATE_FAILED):

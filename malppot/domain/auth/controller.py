@@ -11,7 +11,8 @@ from malppot.common.errors import (
     FailedGoogleAccessTokenException,
     FailedGoogleUserInfoException,
     InvalidCredentialsException,
-    InvalidTokenException
+    InvalidTokenException,
+    rejectRegisterUser
 )
 from malppot.domain.auth.schema import LoginResponse
 
@@ -73,8 +74,10 @@ async def login(
 
     user = auth_service.get_user_by_id(google_id)
     if not user:
-        auth_service.register_user(google_id, email, name, profile_image_url)
-        user = auth_service.get_user_by_id(google_id)
+        raise rejectRegisterUser()
+        # auth_service.register_user(google_id, email, name, profile_image_url)
+        # user = auth_service.get_user_by_id(google_id)
+        #
 
     access_token = jwt_service.create_access_token(user.google_id)
     refresh_token = jwt_service.create_refresh_token(user.google_id)
