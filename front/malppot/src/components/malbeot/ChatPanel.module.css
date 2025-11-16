@@ -1,0 +1,61 @@
+.panelWrapper {
+    position: fixed;
+    left: 0;
+    width: 320px;
+    height: 100vh;
+    background-color: white;
+    border-right: 1px solid #ddd;
+    padding: 1rem;
+    overflow-y: auto;
+    z-index: 1000;
+}
+
+.header {
+    margin: 0 0 1rem 0;
+    color: #6A9B3E;
+    font-size: 20px;
+}
+
+.chatMessages {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.messageRow {
+    display: flex;
+}
+
+.userMessage {
+    justify-content: flex-end;
+}
+
+.modelMessage {
+    justify-content: flex-start;
+}
+
+.messageBubble {
+    max-width: 75%;
+    padding: 12px 16px;
+    font-size: 15px;
+    border-radius: 18px;
+    line-height: 1.5;
+    word-break: break-word;
+    white-space: pre-line;
+}
+
+.userBubble {
+    background-color: #b9e0b5;
+    border-top-left-radius: 18px;
+    border-top-right-radius: 4px;
+    border-bottom-left-radius: 18px;
+    border-bottom-right-radius: 18px;
+}
+
+.modelBubble {
+    background-color: #f1f0f0;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 18px;
+    border-bottom-left-radius: 18px;
+    border-bottom-right-radius: 18px;
+}
