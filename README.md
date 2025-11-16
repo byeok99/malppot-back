@@ -99,12 +99,6 @@
 
 ---
 
-### License
-
-- [MIT](https://github.com/VoiceSpaceUnder5/VoiceSpace/blob/master/LICENSE)
-
---- 
-
 ### 팀 소개
 
 | Name | Github                                  | Role   | Major Part  | Minor Part | Tech Stack                              |
