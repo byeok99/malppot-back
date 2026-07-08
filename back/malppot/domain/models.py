@@ -139,8 +139,8 @@ class PronunciationScore(Base):
 class Syllable(Base):
     __tablename__ = 'syllables'
     syllable_char = Column(String(10), primary_key=True)
-    tongue_url = Column(JSON, nullable=False)
-    lips_url = Column(JSON, nullable=False)
+    tongue_url = Column(JSON, nullable=False, default=list)
+    lips_url = Column(JSON, nullable=False, default=list)
     gpt_tip = Column(Text, nullable=True)
 
 

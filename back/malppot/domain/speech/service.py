@@ -8,7 +8,7 @@ from uuid import uuid4
 import azure.cognitiveservices.speech as speechsdk
 import replicate
 import requests
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from malppot.common.gpt_service import GPTService
@@ -26,7 +26,6 @@ from malppot.domain.models import (
 from malppot.domain.speech.G2P.KoG2Padvanced import KoG2Padvanced
 from malppot.domain.speech.feedback.comp import (
     map_jamos_with_scores,
-    VISEME_TABLE,
     make_tongue_jobs_for_syllable,
     extract_lip_movement_sequence,
     make_lips_jobs_from_sequence
@@ -42,6 +41,56 @@ class SpeechService:
         self.config = config
         self.db = db
         self.gpt_service = gpt_service
+        self._syllable_locks: dict[str, asyncio.Lock] = {}
+        self._syllable_locks_guard = asyncio.Lock()
+
+    async def _get_syllable_lock(self, char: str) -> asyncio.Lock:
+        async with self._syllable_locks_guard:
+            lock = self._syllable_locks.get(char)
+            if lock is None:
+                lock = asyncio.Lock()
+                self._syllable_locks[char] = lock
+            return lock
+
+    @staticmethod
+    def _decode_url_list(value) -> list[str]:
+        if not value:
+            return []
+        if isinstance(value, list):
+            return [str(item) for item in value if item]
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except Exception:
+                return []
+            if isinstance(parsed, list):
+                return [str(item) for item in parsed if item]
+        return []
+
+    @staticmethod
+    def _encode_url_list(value: list[str]) -> list[str]:
+        return [str(item) for item in value if item]
+
+    def _ensure_syllable_row(self, session: Session, char: str) -> Syllable:
+        row = session.query(Syllable).filter_by(syllable_char=char).first()
+        if row:
+            if row.tongue_url is None:
+                row.tongue_url = []
+            if row.lips_url is None:
+                row.lips_url = []
+            return row
+
+        row = Syllable(syllable_char=char, tongue_url=[], lips_url=[])
+        session.add(row)
+        try:
+            session.flush()
+            return row
+        except IntegrityError:
+            session.rollback()
+            row = session.query(Syllable).filter_by(syllable_char=char).first()
+            if not row:
+                raise
+            return row
 
     async def convert(self, input_text: str):
         converted_text = KoG2Padvanced(input_text)
@@ -56,95 +105,79 @@ class SpeechService:
         return {"converted_text": converted_text}
 
     async def _populate_syllable_tongue_videos(self, syllable_chars: Iterable[str], input_text: str) -> None:
-        session: Session = self.db.get_session()
-        try:
-            syllable_chars = [ori_ch for ori_ch in input_text]
-            existing_rows = session.query(Syllable).filter(Syllable.syllable_char.in_(syllable_chars)).all()
-            existing_map = {row.syllable_char: row for row in existing_rows}
+        seen = set()
+        for ori_ch in input_text:
+            if ori_ch in seen:
+                continue
+            seen.add(ori_ch)
+            lock = await self._get_syllable_lock(ori_ch)
+            async with lock:
+                session: Session = self.db.get_session()
+                try:
+                    row = self._ensure_syllable_row(session, ori_ch)
+                    urls = self._decode_url_list(row.tongue_url)
+                    if urls:
+                        session.commit()
+                        continue
 
-            for ch, ori_ch in zip(syllable_chars, input_text):
-                row = existing_map.get(ori_ch)
-                urls = []
-                if row and row.tongue_url:
-                    try:
-                        urls = json.loads(row.tongue_url)
-                    except Exception:
-                        urls = None
-                if urls:
-                    continue
+                    jobs = make_tongue_jobs_for_syllable(ori_ch)
+                    video_urls = []
 
-                jobs = make_tongue_jobs_for_syllable(ch)
-                video_urls = []
+                    for job in jobs:
+                        if job['segment'] == '단독':
+                            frame1_path = job['frame']
+                            filename = os.path.basename(frame1_path)
+                            video_url = f"/static/images/{filename}"
+                        else:
+                            video_url = await self.make_single_video(job, 'tongue')
+                        if video_url:
+                            video_urls.append(str(video_url))
 
-                for job in jobs:
-                    if job['segment'] == '단독':
-                        frame1_path = job['frame']
-                        # URL, 경로 뭐든 파일명만 뽑아서 씀
-                        filename = os.path.basename(frame1_path)
-                        video_url = f"/static/images/{filename}"
-                    else:
-                        video_url = await self.make_single_video(job, 'tongue')
-                    if video_url:
-                        video_urls.append(str(video_url))
-
-                if row:
-                    row.tongue_url = json.dumps(video_urls, ensure_ascii=False)  # update만!
-                else:
-                    session.add(
-                        Syllable(
-                            syllable_char=ori_ch,
-                            tongue_url=json.dumps(video_urls, ensure_ascii=False)
-                        )
-                    )
-            session.commit()
-        finally:
-            session.close()
+                    row.tongue_url = self._encode_url_list(video_urls)
+                    session.commit()
+                except Exception:
+                    session.rollback()
+                    raise
+                finally:
+                    session.close()
 
     async def _populate_syllable_lips_videos(self, lips_movement: Iterable[dict], input_text: str) -> None:
-        session: Session = self.db.get_session()
-        try:
-            syllable_chars = [ori_ch for ori_ch in input_text]
-            existing_rows = session.query(Syllable).filter(Syllable.syllable_char.in_(syllable_chars)).all()
-            existing_map = {row.syllable_char: row for row in existing_rows}
+        seen = set()
+        for entry, ori_ch in zip(lips_movement, input_text):
+            if ori_ch in seen:
+                continue
+            seen.add(ori_ch)
+            lock = await self._get_syllable_lock(ori_ch)
+            async with lock:
+                session: Session = self.db.get_session()
+                try:
+                    seq = entry["sequence"]
+                    row = self._ensure_syllable_row(session, ori_ch)
+                    urls = self._decode_url_list(row.lips_url)
+                    if urls:
+                        session.commit()
+                        continue
 
-            for entry, ori_ch in zip(lips_movement, input_text):
-                ch = entry["letter"]
-                seq = entry["sequence"]
-                row = existing_map.get(ori_ch)
-                urls = []
-                if row and row.lips_url:
-                    try:
-                        urls = json.loads(row.lips_url)
-                    except Exception:
-                        urls = None
-                if urls:
-                    continue
+                    jobs = make_lips_jobs_from_sequence(seq)
 
-                jobs = make_lips_jobs_from_sequence(seq)
+                    video_urls = []
+                    for job in jobs:
+                        if job['segment'] == '단독':
+                            frame1_path = job['frame1']
+                            filename = os.path.basename(frame1_path)
+                            video_url = f"/static/images/lips/{filename}"
+                        else:
+                            video_url = await self.make_single_video(job, 'lips')
+                        if video_url:
+                            video_urls.append(str(video_url))
 
-                video_urls = []
-                for job in jobs:
-                    if job['segment'] == '단독':
-                        frame1_path = job['frame1']
-                        # URL, 경로 뭐든 파일명만 뽑아서 씀
-                        filename = os.path.basename(frame1_path)
-                        video_url = f"/static/images/lips/{filename}"
-                    else:
-                        video_url = await self.make_single_video(job, 'lips')
-                    if video_url:
-                        video_urls.append(str(video_url))
-
-                if row:
-                    row.lips_url = json.dumps(video_urls, ensure_ascii=False)  # update
-                else:
-
-                    session.add(Syllable(
-                        syllable_char=ori_ch,
-                        lips_url=json.dumps(video_urls, ensure_ascii=False)
-                    ))
-            session.commit()
-        finally:
-            session.close()
+                    row.lips_url = self._encode_url_list(video_urls)
+                    session.commit()
+                except Exception:
+                    session.rollback()
+                    raise
+                finally:
+                    session.close()
 
     def get_filename_from_url(url: str):
         return os.path.basename(url).split("?")[0]
@@ -215,76 +248,54 @@ class SpeechService:
         if not target_chars:
             return
 
-        # ───────────────────────────────
-        # 1) 이미 DB에 있는지 조사 (세션1)
-        # ───────────────────────────────
-        session = self.db.get_session()
-        try:
-            existing_rows = session.query(Syllable).filter(Syllable.syllable_char.in_(target_chars)).all()
-            existing_map = {row.syllable_char: row for row in existing_rows}
-        finally:
-            session.close()
+        async def populate_tip(ch: str) -> None:
+            lock = await self._get_syllable_lock(ch)
+            async with lock:
+                session = self.db.get_session()
+                try:
+                    row = self._ensure_syllable_row(session, ch)
+                    if row.gpt_tip:
+                        session.commit()
+                        return
+                    session.commit()
+                except SQLAlchemyError as e:
+                    session.rollback()
+                    print(f"[{ch}] GPT 팁 조회 오류: {e}")
+                    return
+                finally:
+                    session.close()
 
-        # GPT가 필요한 음절
-        need_gpt = [
-            ch for ch in target_chars
-            if not (row := existing_map.get(ch)) or not row.gpt_tip
-        ]
-
-        if not need_gpt:
-            return
-
-        # ───────────────────────────────
-        # 2) GPT 호출을 동시 실행
-        # ───────────────────────────────
-        async def fetch_tip(ch: str):
-            tip = await self.gpt_service.ask(
-                f"너는 어린이 발음 교정 선생님이야."
-                f"다음은 한글 음절을 정확하게 발음하는 방법을 설명하는 예시야:"
-                f"예시:"
-                f"‘학’ 발음을 할 때는 혀끝을 아랫니 뒤에 가볍게 대고, 혀의 뒷부분을 입천장 뒤쪽으로 힘껏 들어올렸다가 ‘탁!’ 하고 터뜨려보세요. 숨을 잠시 막는 느낌이 중요해요."
-                f"아래에 주어진 음절에 대해서도 같은 형식과 어조로 짧고 구체적인 발음 팁을 설명해줘."
-                f"- 대상 음절: '{ch}'"
-                f"※ 형식:"
-                f"- '‘{ch}’ 발음을 할 때는 ~' 으로 시작해줘."
-                f"- 입 모양, 혀의 위치, 공기의 흐름을 설명해줘."
-                f"- 너무 딱딱하지 않고, 친절한 구어체로 말해줘."
-                f"- 한 문장으로 요약해줘."
-                f"- 표준어를 사용해줘."
-                f"- 어린아이에게 설명하듯 쉬운 단어를 사용해줘."
-            )
-            return ch, tip
-
-        tips = await asyncio.gather(*(fetch_tip(ch) for ch in need_gpt))
-
-        # ───────────────────────────────
-        # 3) 한 트랜잭션에 INSERT/UPDATE (세션2)
-        # ───────────────────────────────
-        session = self.db.get_session()
-        try:
-            for ch, gpt_tip in tips:
+                gpt_tip = await self.gpt_service.ask(
+                    f"너는 어린이 발음 교정 선생님이야."
+                    f"다음은 한글 음절을 정확하게 발음하는 방법을 설명하는 예시야:"
+                    f"예시:"
+                    f"‘학’ 발음을 할 때는 혀끝을 아랫니 뒤에 가볍게 대고, 혀의 뒷부분을 입천장 뒤쪽으로 힘껏 들어올렸다가 ‘탁!’ 하고 터뜨려보세요. 숨을 잠시 막는 느낌이 중요해요."
+                    f"아래에 주어진 음절에 대해서도 같은 형식과 어조로 짧고 구체적인 발음 팁을 설명해줘."
+                    f"- 대상 음절: '{ch}'"
+                    f"※ 형식:"
+                    f"- '‘{ch}’ 발음을 할 때는 ~' 으로 시작해줘."
+                    f"- 입 모양, 혀의 위치, 공기의 흐름을 설명해줘."
+                    f"- 너무 딱딱하지 않고, 친절한 구어체로 말해줘."
+                    f"- 한 문장으로 요약해줘."
+                    f"- 표준어를 사용해줘."
+                    f"- 어린아이에게 설명하듯 쉬운 단어를 사용해줘."
+                )
                 if not gpt_tip:
-                    continue
+                    return
 
-                # ⚡ 두 번째 세션에서 반드시 직접 select!
-                row = session.query(Syllable).filter_by(syllable_char=ch).first()
-                if row:
-                    row.gpt_tip = gpt_tip  # UPDATE
-                else:
-                    session.add(
-                        Syllable(
-                            syllable_char=ch,
-                            tongue_url=VISEME_TABLE.get(ch, None),
-                            lips_url=VISEME_TABLE.get(ch, None),
-                            gpt_tip=gpt_tip,
-                        )
-                    )
-            session.commit()
-        except SQLAlchemyError as e:
-            session.rollback()
-            print(f"[{', '.join(target_chars)}] GPT 팁 저장 오류: {e}")
-        finally:
-            session.close()
+                session = self.db.get_session()
+                try:
+                    row = self._ensure_syllable_row(session, ch)
+                    if not row.gpt_tip:
+                        row.gpt_tip = gpt_tip
+                    session.commit()
+                except SQLAlchemyError as e:
+                    session.rollback()
+                    print(f"[{ch}] GPT 팁 저장 오류: {e}")
+                finally:
+                    session.close()
+
+        await asyncio.gather(*(populate_tip(ch) for ch in target_chars))
 
     async def evaluate(self, original_text: str, reference_text: str, audio_path: str) -> dict:
         original_words = original_text.split()
@@ -572,10 +583,10 @@ class SpeechService:
                     syllable_obj = session.query(Syllable).filter_by(syllable_char=syllable_char).first()
                     syllables.append({
                         "char": syllable_char,
-                        "tongue_url": json.loads(
-                            syllable_obj.tongue_url) if syllable_obj and syllable_obj.tongue_url else None,
-                        "lips_url": json.loads(
-                            syllable_obj.lips_url) if syllable_obj and syllable_obj.lips_url else None,
+                        "tongue_url": self._decode_url_list(
+                            syllable_obj.tongue_url) if syllable_obj else None,
+                        "lips_url": self._decode_url_list(
+                            syllable_obj.lips_url) if syllable_obj else None,
                         "gpt_tip": syllable_obj.gpt_tip if syllable_obj else ""
                     })
                 result.append({
@@ -657,15 +668,9 @@ class SpeechService:
             tongue_url = []
             lips_url = []
             if row.tongue_url:
-                try:
-                    tongue_url = json.loads(row.tongue_url)
-                except Exception:
-                    tongue_url = []
+                tongue_url = self._decode_url_list(row.tongue_url)
             if row.lips_url:
-                try:
-                    lips_url = json.loads(row.lips_url)
-                except Exception:
-                    lips_url = []
+                lips_url = self._decode_url_list(row.lips_url)
             return {
                 "char": char,
                 "tongue_url": tongue_url,
