@@ -1,0 +1,701 @@
+.myPageWrapper {
+    max-width: 1200px;
+    margin: 0 auto;
+    margin-top: 1rem;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    border-radius: 1rem;
+    gap: 2rem;
+    /* background-color: #f8fbf6; */
+}
+
+.summaryDashboard {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: auto 1fr;
+    gap: 1.5rem;
+}
+
+@media (max-width: 960px) {
+    .summaryDashboard {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+    }
+}
+
+.card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    box-shadow: 0 4px 25px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e9ecef;
+    border-top: 3px solid transparent;
+    transition: border-top-color 0.3s ease;
+}
+
+.card:hover {
+    border-top-color: #6a9b3e;
+}
+
+.greetingCard {
+    grid-column: 1 / 2;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.graphCard {
+    grid-column: 2 / 3;
+    grid-row: 1 / 3;
+    display: flex;
+    flex-direction: column;
+}
+
+@media (max-width: 960px) {
+    .graphCard {
+        grid-column: auto;
+        grid-row: auto;
+        min-height: 250px;
+    }
+}
+
+.graphContainer {
+    flex-grow: 1;
+    position: relative;
+}
+
+.graphContainer svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.graphContainer .line {
+    stroke: #6a9b3e;
+    stroke-width: 2.5;
+    fill: none;
+}
+
+.graphContainer .area {
+    fill: url(#area-gradient);
+}
+
+.userInfo {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.userInfo h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: #495057;
+}
+
+.userInfo span {
+    font-weight: 700;
+    color: #6a9b3e;
+}
+
+.profileImage {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.tierInfo {
+    text-align: center;
+}
+
+.tierInfo .tierIcon {
+    font-size: 2.5rem;
+}
+
+.tierInfo .tierName {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #6a9b3e;
+}
+
+.metricRow {
+    grid-column: 1 / 2;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+}
+
+.metricCard {
+    display: flex;
+    flex-direction: column;
+}
+
+.metricValue {
+    margin: 0.5rem 0 0;
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #6a9b3e;
+    display: flex;
+    align-items: baseline;
+    gap: 0.3rem;
+}
+
+.metricValue span {
+    font-size: 1.2rem;
+    margin-left: 0.25rem;
+    font-weight: 600;
+}
+
+.metricChange {
+    margin-top: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+}
+
+.metricChange .currentVal {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #343a40;
+}
+
+.metricChange .unit {
+    font-size: 1.2rem;
+    margin-left: 0.2rem;
+    color: #495057;
+}
+
+.metricChange .previous-val {
+    font-size: 1.2rem;
+    color: #adb5bd;
+}
+
+.metricChange svg,
+.metricChange .arrow-icon {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    min-height: 18px;
+    margin: 0 0.2rem;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.phonemeGridWrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.phonemeGrid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.phonemeButton {
+    padding: 0.75rem 0;
+    font-size: 1.2rem;
+    border-radius: 8px;
+    cursor: pointer;
+    width: 65px;
+    border: 1px solid transparent;
+    color: #fff;
+    font-weight: bold;
+    transition: all 0.2s;
+    background-color: #6a9b3e;
+}
+
+.phonemeButton:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+}
+
+.phonemeButton.active {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 3px rgba(106, 155, 62, 0.5);
+    border-color: #fff;
+}
+
+.tabBar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #eee;
+    margin-bottom: 1rem;
+}
+
+.tabButton {
+    padding: 0.5rem 0.25rem;
+    border: none;
+    background: none;
+    font-size: 1.1rem;
+    cursor: pointer;
+    color: #868e96;
+    font-weight: 500;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+}
+
+.tabButton.active {
+    color: #6a9b3e;
+    font-weight: 700;
+    border-bottom: 3px solid #6a9b3e;
+}
+
+.controlsWrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.filterButtonGroup {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.controlButton {
+    background-color: #f1f3f5;
+    color: #495057;
+    border: 1px solid #dee2e6;
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.controlButton:hover {
+    opacity: 0.8;
+}
+
+.controlButton.active {
+    background-color: #6a9b3e;
+    color: white;
+    border: 1px solid #6a9b3e;
+}
+
+.tableWrapper {
+    width: 100%;
+    overflow-x: auto;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+}
+
+.analysisTable {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.analysisTable th,
+.analysisTable td {
+    padding: 0.6rem 1rem;
+    text-align: center;
+    border-bottom: 1px solid #eee;
+}
+
+.analysisTable th {
+    background: #f8fbf6;
+    font-size: 1rem;
+    color: #868e96;
+    font-weight: 700;
+}
+
+.analysisTable td {
+    background: #fff;
+    font-size: 1rem;
+    color: #495057;
+}
+
+.errorTypeDisplay {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #ec6d6d;
+}
+
+.practiceButton {
+    background: #6a9b3e;
+    color: #fff;
+    padding: 0.35rem 1.1rem;
+    border-radius: 7px;
+    font-size: 0.98rem;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.practiceButton:hover {
+    background: #5b8735;
+}
+
+.comprehensiveGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem 0;
+}
+
+.chartCard {
+    display: flex;
+    flex-direction: column;
+}
+
+.chartWrapper {
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 1rem;
+    min-height: 200px;
+}
+
+
+.analysisReportContainer {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    box-shadow: 0 4px 25px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e9ecef;
+    border-top: 3px solid transparent;
+}
+
+.analysisReportContainer:hover {
+    border-top-color: #6a9b3e;
+}
+
+.analysisReportContainer h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    color: #343a40;
+}
+
+.analysisReportContainer p {
+    font-size: 1.1rem;
+    color: #495057;
+    line-height: 1.6;
+}
+
+.analysisReportContainer strong {
+    color: #e03131;
+    font-weight: 700;
+}
+
+/* ----------- Layout ----------------------*/
+.reportGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: flex-start;
+}
+
+@media (max-width: 768px) {
+    .reportGrid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.reportSection h4 {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    color: #495057;
+    font-weight: 600;
+    border-bottom: 1px solid #f1f3f5;
+    padding-bottom: 0.5rem;
+}
+
+/* ----------- Recommended Words -----------*/
+.wordList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.recommendedWord {
+    background: #f8f9fa;
+    color: #6a9b3e;
+    border: 1px solid #d9eecb;
+    padding: 0.6rem 1.2rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.recommendedWord:hover {
+    background-color: #ffffff;
+    border-color: #6a9b3e;
+    transform: scale(1.05);
+}
+
+/* ----------- Accordion & Buttons ---------*/
+.seeAllButton {
+    background: none;
+    border: none;
+    color: #868e96;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 0.9rem;
+    margin-top: 1.5rem;
+}
+
+.seeAllButton:hover {
+    color: #343a40;
+}
+
+.accordionContent {
+    overflow: hidden;
+    transition: all 0.5s ease-in-out;
+    border-top: 1px solid #f1f3f5;
+    margin-top: 1.5rem;
+}
+
+.controlsWrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    margin-top: 1rem;
+}
+
+.filterButtonGroup {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.controlButton {
+    background-color: #f1f3f5;
+    color: #495057;
+    border: 1px solid #dee2e6;
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.controlButton:hover {
+    opacity: 0.8;
+}
+
+.controlButtonActive {
+    background-color: #6a9b3e;
+    color: #ffffff;
+    border-color: #6a9b3e;
+}
+
+/* ----------- Table -----------------------*/
+.tableWrapper {
+    min-height: 290px;
+}
+
+.analysisTable {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.analysisTable th,
+.analysisTable td {
+    padding: 0.85rem;
+    text-align: center;
+    border-bottom: 1px solid #f1f3f5;
+    font-size: 1rem;
+}
+
+.analysisTable th {
+    font-weight: 600;
+    color: #868e96;
+    font-size: 0.85rem;
+    background-color: #f8f9fa;
+}
+
+.analysisTable td {
+    color: #495057;
+}
+
+.practiceButton {
+    background-color: transparent;
+    border: 1px solid #6a9b3e;
+    color: #6a9b3e;
+    border-radius: 6px;
+    padding: 0.25rem 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.practiceButton:hover {
+    background-color: #f8fbf6;
+    color: #588a34;
+}
+
+/* ----------- Pagination ------------------*/
+.paginationWrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 1.5rem;
+}
+
+.pageButton {
+    min-width: 32px;
+    padding: 0.5rem;
+    border: 1px solid #dee2e6;
+    background-color: #fff;
+    color: #495057;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.pageButtonActive {
+    background-color: #6a9b3e;
+    color: #ffffff;
+}
+
+.pageButton:disabled {
+    background-color: #f8f9fa;
+    cursor: not-allowed;
+    color: #ced4da;
+}
+
+/* ----------- Bar Chart -------------------*/
+.barChartContainer {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+
+.barWrapper {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.barLabel {
+    width: 50px;
+    font-weight: 600;
+    color: #495057;
+}
+
+.bar {
+    flex-grow: 1;
+    height: 24px;
+    border-radius: 4px;
+    background-color: #e9ecef;
+    overflow: hidden;
+}
+
+.barFill {
+    height: 100%;
+    transition: width 0.5s ease-out;
+}
+
+.barScore {
+    font-weight: 700;
+    color: #343a40;
+}
+
+.loadingWrapper {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+}
+
+.tierInfo {
+    position: relative;
+    display: inline-block;
+    z-index: 10;
+}
+
+.tierTooltip {
+    visibility: hidden;
+    width: 280px;
+    background-color: #f8fafb;
+    /* 연한 바탕 */
+    color: #212529;
+    text-align: center;
+    border-radius: 8px;
+    padding: 10px;
+    position: absolute;
+    z-index: 10;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -140px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 0.85rem;
+    font-weight: 500;
+    line-height: 1.5;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.tierTooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -6px;
+    border-width: 6px;
+    border-style: solid;
+    border-color: #6a9b3e transparent transparent transparent;
+}
+
+.tierInfo:hover .tierTooltip,
+.tierInfo:focus-within .tierTooltip {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* 내용 강조(내 등급) */
+.tierTooltipItem {
+    margin-bottom: 2px;
+    font-size: 13px;
+    color: #212529;
+    font-weight: 400;
+}
+
+.tierTooltipItem.active {
+    font-weight: bold;
+    color: #35651a;
+}
+
+.downloadButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    background: #6a9b3e;
+    color: #fff;
+    font-weight: 600;
+    font-size: 1rem;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.downloadButton:hover {
+    background: #35651a;
+}
+
+.downloadButton:active {
+    background: #35651a;
+}
+
+.downloadButton svg {
+    width: 1.2em;
+    height: 1.2em;
+    fill: currentColor;
+}

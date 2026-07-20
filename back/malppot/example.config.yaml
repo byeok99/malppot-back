@@ -1,0 +1,29 @@
+db:
+    host: ""
+    port:
+    user: ""
+    password: ""
+    name: ""
+    driver: ""
+
+jwt:
+    secret_key: ""
+    access_token_expire_minutes:
+    refresh_token_expire_days:
+    algorithm: ""
+
+openai:
+    api_key: ""
+    realtime_model: ""
+    text_model: ""
+    url: ""
+
+azure_speech:
+    azure_key: ""
+    azure_region: ""
+    replicate_key: ""
+
+google:
+    client_id: ""
+    client_secret: ""
+    redirect_uri: ""

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #fff;
+      }
+
+      .cls-2 {
+        fill: #eef7e9;
+      }
+
+      .cls-3 {
+        fill: #868e96;
+      }
+
+      .cls-4 {
+        fill: #6a9b3e;
+      }
+    </style>
+  </defs>
+  <g id="_레이어_1" data-name="레이어 1">
+    <circle class="cls-2" cx="150" cy="150" r="150"/>
+  </g>
+  <g id="_레이어_3" data-name="레이어 3">
+    <g>
+      <g>
+        <path class="cls-4" d="M171.17,178.19h-98.34c-7.08,0-12.83-5.37-12.83-12v-65c0-6.63,5.74-12,12.83-12h98.34c7.08,0,12.83,5.37,12.83,12v65c0,6.63-5.74,12-12.83,12Z"/>
+        <polyline class="cls-4" points="122 202.19 85.02 175.19 122 175.19"/>
+      </g>
+      <path class="cls-1" d="M154.83,219.85h59.07s6.48,0,6.48,0h9.79c5.43,0,9.83-5.16,9.83-11.53v-62.48c0-6.37-4.4-11.53-9.83-11.53h-75.34c-5.43,0-9.83,5.16-9.83,11.53v62.48c0,6.37,4.4,11.53,9.83,11.53Z"/>
+      <polyline class="cls-1" points="191.5 242.81 219.83 216.85 191.5 216.85"/>
+      <g>
+        <circle class="cls-3" cx="171" cy="177.08" r="5"/>
+        <circle class="cls-3" cx="193" cy="177.08" r="5"/>
+        <circle class="cls-3" cx="214" cy="177.08" r="5"/>
+      </g>
+    </g>
+  </g>
+</svg>

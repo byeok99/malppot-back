@@ -1,0 +1,118 @@
+/* Auth.module.css */
+
+.pageWrapper {
+    display: flex;
+    height: 100vh;
+    width: 100%;
+    background-color: #fff;
+}
+
+.infoPanel {
+    flex: 1;
+    background-color: #f8f9fa;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+}
+
+/* @media 쿼리는 CSS Modules 파일 내부에 직접 작성합니다. */
+@media (max-width: 800px) {
+    .infoPanel {
+        display: none;
+    }
+}
+
+.infoTextContainer {
+    text-align: left;
+}
+
+.infoLine {
+    font-size: 2.5rem;
+    font-weight: 300;
+    color: #333;
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* & + & (인접 형제 선택자)는 CSS Modules에서는 지원하지 않으므로,
+   별도의 클래스를 추가하거나 부모 컨테이너에 gap을 줄 수 있습니다.
+   여기서는 단순화를 위해 margin-top으로 대체합니다. */
+.infoLine+.infoLine {
+    /* Auth.module.css에서는 이렇게 클래스명을 직접 조합해야 합니다 */
+    margin-top: 1rem;
+}
+
+.highlight {
+    font-weight: 700;
+    color: #6a9b3e;
+}
+
+.loginPanel {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+}
+
+.loginBox {
+    max-width: 400px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.logoImage {
+    width: 150px;
+    margin-bottom: 2rem;
+}
+
+.subtitle {
+    color: #555;
+    font-size: 1.1rem;
+    margin-bottom: 2.5rem;
+}
+
+.googleSignInButton,
+.tempLoginButton {
+    /* 공통 스타일 */
+    width: 100%;
+    max-width: 320px;
+    height: 50px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: "Roboto", sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    transition: all 0.2s ease-in-out;
+}
+
+.googleSignInButton {
+    border: 1px solid #dcdcdc;
+    background-color: #fff;
+    color: #333;
+}
+
+.googleSignInButton:hover {
+    border-color: #c0c0c0;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+}
+
+.tempLoginButton {
+    background-color: #777;
+    color: white;
+    margin-top: 1rem;
+    border: 1px solid #777;
+    /* border-color도 동일하게 설정 */
+}
+
+.tempLoginButton:hover {
+    background-color: #666;
+    border-color: #666;
+}
