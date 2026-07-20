@@ -14,6 +14,7 @@ from malppot.domain.models import (
     PracticeWord,
     JamoStatistic,
     PronunciationScore,
+    Word,
 )
 from malppot.domain.mypage.schema import (
     MyPageResponse,
@@ -119,52 +120,7 @@ class MyPageService:
                         tense_acc[st.jamo_char] = score
             all_acc: Dict[str, float] = {**normal_acc, **tense_acc}
 
-            detailed: List[MyPageDetailedAnalysisItem] = []
-            pw_list: List[PracticeWord] = (
-                db_session.query(PracticeWord).filter(PracticeWord.user_idx == user_idx).all()
-            )
-            session_dates = {
-                s.session_idx: s.created_at
-                for s in db_session.query(PracticeSession.session_idx, PracticeSession.created_at)
-                .filter(PracticeSession.user_idx == user_idx)
-                .all()
-            }
-            for pw in pw_list:
-                hist_rows = (
-                    db_session.query(PracticeWord)
-                    .filter(
-                        PracticeWord.user_idx == user_idx,
-                        PracticeWord.word_idx == pw.word_idx,
-                    )
-                    .all()
-                )
-                hist_sorted = sorted(
-                    [
-                        (session_dates.get(r.session_idx), r.average_score)
-                        for r in hist_rows
-                        if r.average_score is not None
-                    ],
-                    key=lambda t: t[0],
-                )
-                history_scores = [round(float(s), 2) for _, s in hist_sorted]
-
-                pscore = (
-                    db_session.query(PronunciationScore)
-                    .filter(PronunciationScore.practice_word_idx == str(pw.practice_word_idx))
-                    .first()
-                )
-                if not pscore or not pscore.jamo_char:
-                    continue
-                detailed.append(
-                    MyPageDetailedAnalysisItem(
-                        id=str(pscore.score_idx),
-                        word=pw.word.text,
-                        phoneme=pscore.jamo_char,
-                        accuracy=round(pscore.score, 2),
-                        mainErrorType=_err_enum_to_kor(pw.error_type),
-                        history=history_scores,
-                    )
-                )
+            detailed = self._collect_detailed_analysis(db_session, user_idx)
 
             err_rows = (
                 db_session.query(PracticeWord.error_type, func.count())
@@ -187,52 +143,19 @@ class MyPageService:
                 soundCategoryAccuracy=_sound_cat_acc(all_acc),
             )
 
+            pos_rows_by_phoneme = self._collect_position_rows_by_phoneme(db_session, user_idx)
+            records_by_phoneme = self._collect_word_records_by_phoneme(db_session, user_idx)
+            recommendations_by_phoneme = self.recommendation_service.get_words_map(list(all_acc.keys()))
+
             phoneme_detail: Dict[str, PhonemeAnalysis] = {}
             for phoneme, overall in all_acc.items():
-                pos_rows = (
-                    db_session.query(
-                        PronunciationScore.jamo_position,
-                        func.avg(PronunciationScore.score),
-                        PracticeWord.error_type,
-                        func.count(),
-                    )
-                    .join(
-                        PracticeWord,
-                        PracticeWord.practice_word_idx == PronunciationScore.practice_word_idx,
-                    )
-                    .filter(
-                        PracticeWord.user_idx == user_idx,
-                        PronunciationScore.jamo_char == phoneme,
-                    )
-                    .group_by(
-                        PronunciationScore.jamo_position, PracticeWord.error_type
-                    )
-                    .all()
-                )
-                pos_avg: Dict[str, float] = defaultdict(float)
-                pos_err: Dict[str, DefaultDict[str, int]] = defaultdict(lambda: defaultdict(int))
-                for pos, avg, err, cnt in pos_rows:
-                    pos_avg[pos] = avg
-                    pos_err[pos][_err_enum_to_kor(err)] += cnt
-
-                pos_analysis: Dict[str, PhonemePositionAnalysis] = {}
-                for p, acc in pos_avg.items():
-                    et = ErrorTendency()
-                    tot = sum(pos_err[p].values()) or 1
-                    for k, c in pos_err[p].items():
-                        setattr(et, _kor_to_field(k), round(c / tot * 100))
-                    pos_analysis[p] = PhonemePositionAnalysis(
-                        averageAccuracy=round(acc, 2),
-                        errorTendency=et,
-                    )
-
-                rec = self.recommendation_service.get_words(phoneme)
-                records = self._collect_word_records(db_session, user_idx, phoneme)
                 phoneme_detail[phoneme] = PhonemeAnalysis(
                     overallAccuracy=overall,
-                    positionalAnalysis=pos_analysis,
-                    recommendedWords=rec,
-                    allRecords=records,
+                    positionalAnalysis=self._build_position_analysis(
+                        pos_rows_by_phoneme.get(phoneme, [])
+                    ),
+                    recommendedWords=recommendations_by_phoneme.get(phoneme, []),
+                    allRecords=records_by_phoneme.get(phoneme, []),
                 )
 
             return MyPageResponse(
@@ -246,6 +169,178 @@ class MyPageService:
             )
         finally:
             db_session.close()
+
+    def _collect_detailed_analysis(self, s, user_idx: int) -> list[MyPageDetailedAnalysisItem]:
+        rows = (
+            s.query(
+                PracticeWord.practice_word_idx,
+                PracticeWord.word_idx,
+                Word.text,
+                PracticeWord.average_score,
+                PracticeWord.error_type,
+                PracticeSession.created_at,
+                PronunciationScore.score_idx,
+                PronunciationScore.jamo_char,
+                PronunciationScore.score,
+            )
+            .join(PracticeSession, PracticeWord.session_idx == PracticeSession.session_idx)
+            .join(Word, PracticeWord.word_idx == Word.word_idx)
+            .join(PronunciationScore, PronunciationScore.practice_word_idx == PracticeWord.practice_word_idx)
+            .filter(PracticeWord.user_idx == user_idx)
+            .order_by(Word.text, PracticeSession.created_at)
+            .all()
+        )
+
+        history_by_word_idx: DefaultDict[str, list[tuple]] = defaultdict(list)
+        first_score_by_practice_word: dict[str, tuple] = {}
+        history_practice_word_ids: set[str] = set()
+
+        for row in rows:
+            (
+                practice_word_idx,
+                word_idx,
+                word_text,
+                average_score,
+                error_type,
+                created_at,
+                score_idx,
+                jamo_char,
+                score,
+            ) = row
+            if average_score is not None and practice_word_idx not in history_practice_word_ids:
+                history_by_word_idx[word_idx].append((created_at, average_score))
+                history_practice_word_ids.add(practice_word_idx)
+            if practice_word_idx not in first_score_by_practice_word and jamo_char:
+                first_score_by_practice_word[practice_word_idx] = (
+                    score_idx,
+                    word_idx,
+                    word_text,
+                    jamo_char,
+                    score,
+                    error_type,
+                )
+
+        history_scores_by_word_idx = {}
+        for word_idx, items in history_by_word_idx.items():
+            valid_items = [item for item in items if item[0] is not None]
+            history_scores_by_word_idx[word_idx] = [
+                round(float(score), 2)
+                for _created_at, score in sorted(valid_items, key=lambda item: item[0])
+            ]
+
+        return [
+            MyPageDetailedAnalysisItem(
+                id=str(score_idx),
+                word=word_text,
+                phoneme=jamo_char,
+                accuracy=round(float(score), 2),
+                mainErrorType=_err_enum_to_kor(error_type),
+                history=history_scores_by_word_idx.get(word_idx, []),
+            )
+            for (
+                score_idx,
+                word_idx,
+                word_text,
+                jamo_char,
+                score,
+                error_type,
+            ) in first_score_by_practice_word.values()
+            if score is not None
+        ]
+
+    def _collect_position_rows_by_phoneme(self, s, user_idx: int) -> dict[str, list[tuple]]:
+        rows = (
+            s.query(
+                PronunciationScore.jamo_char,
+                PronunciationScore.jamo_position,
+                func.avg(PronunciationScore.score),
+                PracticeWord.error_type,
+                func.count(),
+            )
+            .join(PracticeWord, PracticeWord.practice_word_idx == PronunciationScore.practice_word_idx)
+            .filter(
+                PracticeWord.user_idx == user_idx,
+                PronunciationScore.jamo_char.in_(self.CONSONANTS),
+            )
+            .group_by(
+                PronunciationScore.jamo_char,
+                PronunciationScore.jamo_position,
+                PracticeWord.error_type,
+            )
+            .all()
+        )
+
+        result: DefaultDict[str, list[tuple]] = defaultdict(list)
+        for phoneme, position, avg_score, error_type, count in rows:
+            result[phoneme].append((position, avg_score, error_type, count))
+        return dict(result)
+
+    def _build_position_analysis(self, rows: list[tuple]) -> dict[str, PhonemePositionAnalysis]:
+        pos_avg: Dict[str, float] = defaultdict(float)
+        pos_err: Dict[str, DefaultDict[str, int]] = defaultdict(lambda: defaultdict(int))
+        for pos, avg, err, cnt in rows:
+            pos_avg[pos] = avg
+            pos_err[pos][_err_enum_to_kor(err)] += cnt
+
+        pos_analysis: Dict[str, PhonemePositionAnalysis] = {}
+        for p, acc in pos_avg.items():
+            et = ErrorTendency()
+            tot = sum(pos_err[p].values()) or 1
+            for k, c in pos_err[p].items():
+                setattr(et, _kor_to_field(k), round(c / tot * 100))
+            pos_analysis[p] = PhonemePositionAnalysis(
+                averageAccuracy=round(acc, 2),
+                errorTendency=et,
+            )
+        return pos_analysis
+
+    def _collect_word_records_by_phoneme(
+            self, s, user_idx: int
+    ) -> dict[str, list[MyPageDetailedAnalysisItem]]:
+        pw_rows = (
+            s.query(
+                Word.text,
+                PracticeWord.average_score,
+                PracticeWord.error_type,
+                PracticeSession.created_at,
+            )
+            .join(PracticeSession, PracticeWord.session_idx == PracticeSession.session_idx)
+            .join(Word, PracticeWord.word_idx == Word.word_idx)
+            .filter(
+                PracticeWord.user_idx == user_idx,
+                PracticeWord.average_score.isnot(None),
+            )
+            .order_by(Word.text, PracticeSession.created_at)
+            .all()
+        )
+
+        word_map: DefaultDict[tuple[str, str], list[tuple]] = defaultdict(list)
+        for word_txt, avg_score, error_type, created_at in pw_rows:
+            if not word_txt:
+                continue
+            phoneme = self._get_initial_jamo(word_txt[0])
+            if phoneme in self.CONSONANTS:
+                word_map[(phoneme, word_txt)].append((created_at, avg_score, error_type))
+
+        result: DefaultDict[str, list[MyPageDetailedAnalysisItem]] = defaultdict(list)
+        for (phoneme, word_txt), items in word_map.items():
+            items = [x for x in items if x[0] is not None]
+            if not items:
+                continue
+            items_sorted = sorted(items, key=lambda x: x[0])
+            history_scores = [round(float(avg), 2) for _, avg, _ in items_sorted][-7:]
+            _, latest_score, latest_error = items_sorted[-1]
+            result[phoneme].append(
+                MyPageDetailedAnalysisItem(
+                    id=f"{phoneme}-{word_txt}",
+                    word=word_txt,
+                    phoneme=phoneme,
+                    accuracy=round(float(latest_score), 2),
+                    mainErrorType=_err_enum_to_kor(latest_error),
+                    history=history_scores
+                )
+            )
+        return dict(result)
 
     async def get_summary(self, user_idx: int) -> SummaryResponse:
         s = self.db_manager.get_session()
