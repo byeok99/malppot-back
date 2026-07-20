@@ -71,3 +71,24 @@ class RecommendationService:
             raise ValueError("데이터 포맷 오류: 기대한 리스트[dict]가 아님")
         finally:
             db.close()
+
+    def get_words_map(self, jamo_initials: list[str]) -> dict[str, List[Dict[str, str]]]:
+        db: Session = self.db.get_session()
+        try:
+            rows = (
+                db.query(RecommendationsWords.jamo_initial, RecommendationsWords.words)
+                .filter(RecommendationsWords.jamo_initial.in_(jamo_initials))
+                .all()
+            )
+
+            result: dict[str, List[Dict[str, str]]] = {jamo: [] for jamo in jamo_initials}
+            for jamo, words in rows:
+                parsed = words if isinstance(words, list) else json.loads(words)
+                if isinstance(parsed, list) and all(
+                        isinstance(x, dict) and 'word' in x and 'sentence' in x for x in parsed):
+                    result[jamo] = parsed
+                else:
+                    raise ValueError("데이터 포맷 오류: 기대한 리스트[dict]가 아님")
+            return result
+        finally:
+            db.close()
