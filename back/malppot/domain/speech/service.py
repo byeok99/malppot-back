@@ -2,12 +2,17 @@ import asyncio
 import datetime
 import json
 import os
+from contextlib import asynccontextmanager
 from typing import Dict, List, Iterable
 from uuid import uuid4
 
 import azure.cognitiveservices.speech as speechsdk
 import replicate
 import requests
+try:
+    import redis.asyncio as redis_async
+except ImportError:
+    redis_async = None
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -43,6 +48,12 @@ class SpeechService:
         self.gpt_service = gpt_service
         self._syllable_locks: dict[str, asyncio.Lock] = {}
         self._syllable_locks_guard = asyncio.Lock()
+        self._redis = None
+        redis_url = os.getenv("MALPPOT_REDIS_URL")
+        if redis_url and redis_async:
+            self._redis = redis_async.from_url(redis_url, decode_responses=True)
+        self._redis_lock_ttl = int(os.getenv("MALPPOT_REDIS_LOCK_TTL", "120"))
+        self._redis_lock_wait_timeout = float(os.getenv("MALPPOT_REDIS_LOCK_WAIT_TIMEOUT", "10"))
 
     async def _get_syllable_lock(self, char: str) -> asyncio.Lock:
         async with self._syllable_locks_guard:
@@ -51,6 +62,54 @@ class SpeechService:
                 lock = asyncio.Lock()
                 self._syllable_locks[char] = lock
             return lock
+
+    @asynccontextmanager
+    async def _syllable_generation_lock(self, char: str):
+        local_lock = await self._get_syllable_lock(char)
+        async with local_lock:
+            if not self._redis:
+                yield True
+                return
+
+            lock_key = f"malppot:syllable:{char}:lock"
+            lock_token = str(uuid4())
+            deadline = asyncio.get_running_loop().time() + self._redis_lock_wait_timeout
+            acquired = False
+
+            while asyncio.get_running_loop().time() < deadline:
+                try:
+                    acquired = bool(
+                        await self._redis.set(
+                            lock_key,
+                            lock_token,
+                            nx=True,
+                            ex=self._redis_lock_ttl,
+                        )
+                    )
+                except Exception:
+                    yield True
+                    return
+                if acquired:
+                    break
+                await asyncio.sleep(0.1)
+
+            if not acquired:
+                yield False
+                return
+
+            try:
+                yield True
+            finally:
+                script = """
+                if redis.call("get", KEYS[1]) == ARGV[1] then
+                    return redis.call("del", KEYS[1])
+                end
+                return 0
+                """
+                try:
+                    await self._redis.eval(script, 1, lock_key, lock_token)
+                except Exception:
+                    pass
 
     @staticmethod
     def _decode_url_list(value) -> list[str]:
@@ -92,6 +151,16 @@ class SpeechService:
                 raise
             return row
 
+    def _get_syllable_row(self, session: Session, char: str) -> Syllable | None:
+        row = session.query(Syllable).filter_by(syllable_char=char).first()
+        if not row:
+            return None
+        if row.tongue_url is None:
+            row.tongue_url = []
+        if row.lips_url is None:
+            row.lips_url = []
+        return row
+
     async def convert(self, input_text: str):
         converted_text = KoG2Padvanced(input_text)
 
@@ -110,13 +179,19 @@ class SpeechService:
             if ori_ch in seen:
                 continue
             seen.add(ori_ch)
-            lock = await self._get_syllable_lock(ori_ch)
-            async with lock:
+            async with self._syllable_generation_lock(ori_ch) as lock_acquired:
                 session: Session = self.db.get_session()
                 try:
-                    row = self._ensure_syllable_row(session, ori_ch)
+                    row = (
+                        self._ensure_syllable_row(session, ori_ch)
+                        if lock_acquired
+                        else self._get_syllable_row(session, ori_ch)
+                    )
+                    if not row:
+                        session.commit()
+                        continue
                     urls = self._decode_url_list(row.tongue_url)
-                    if urls:
+                    if urls or not lock_acquired:
                         session.commit()
                         continue
 
@@ -147,14 +222,20 @@ class SpeechService:
             if ori_ch in seen:
                 continue
             seen.add(ori_ch)
-            lock = await self._get_syllable_lock(ori_ch)
-            async with lock:
+            async with self._syllable_generation_lock(ori_ch) as lock_acquired:
                 session: Session = self.db.get_session()
                 try:
                     seq = entry["sequence"]
-                    row = self._ensure_syllable_row(session, ori_ch)
+                    row = (
+                        self._ensure_syllable_row(session, ori_ch)
+                        if lock_acquired
+                        else self._get_syllable_row(session, ori_ch)
+                    )
+                    if not row:
+                        session.commit()
+                        continue
                     urls = self._decode_url_list(row.lips_url)
-                    if urls:
+                    if urls or not lock_acquired:
                         session.commit()
                         continue
 
@@ -249,12 +330,18 @@ class SpeechService:
             return
 
         async def populate_tip(ch: str) -> None:
-            lock = await self._get_syllable_lock(ch)
-            async with lock:
+            async with self._syllable_generation_lock(ch) as lock_acquired:
                 session = self.db.get_session()
                 try:
-                    row = self._ensure_syllable_row(session, ch)
-                    if row.gpt_tip:
+                    row = (
+                        self._ensure_syllable_row(session, ch)
+                        if lock_acquired
+                        else self._get_syllable_row(session, ch)
+                    )
+                    if not row:
+                        session.commit()
+                        return
+                    if row.gpt_tip or not lock_acquired:
                         session.commit()
                         return
                     session.commit()
