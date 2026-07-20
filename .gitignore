@@ -128,14 +128,15 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-malppot/.env
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
-malppot/config.yaml
+back/.venv/
+back/malppot/.env
+back/malppot/config.yaml
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -171,8 +172,8 @@ cython_debug/
 .pypirc
 .DS_Store
 
-malppot/static/tongue
-malppot/static/lips
+back/malppot/static/tongue/
+back/malppot/static/lips/
 
 # Created by https://www.toptal.com/developers/gitignore/api/react
 # Edit at https://www.toptal.com/developers/gitignore?templates=react
@@ -185,6 +186,7 @@ logs
 **/*.back.*
 
 node_modules
+**/node_modules/
 bower_components
 
 *.sublime*

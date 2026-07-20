@@ -8,7 +8,7 @@
 입장 → Google 로그인 → AI 말벗 / 말소리 연습실 / 발음 게임 → 음성 평가 → 발음 기록 저장 → 마이페이지 리포트·추천 단어
 ```
 
-<img src="/docs/imgs/thumbnail.png" width="1000">
+<img src="/assets/readme/thumbnail.png" width="1000">
 
 ## 핵심 기능
 
@@ -74,6 +74,18 @@ MySQL
 ```
 
 백엔드는 도메인별로 `controller / service / schema`를 분리합니다. Controller는 HTTP·WebSocket 입출력과 dependency 조립을 맡고, Service는 G2P 변환, 외부 API 호출, 평가 결과 매핑, DB 저장, 통계 갱신 같은 유스케이스를 처리합니다.
+
+## 저장소 구조
+
+```text
+malppot/
+  front/malppot/   React + Vite 프런트엔드
+  back/malppot/    FastAPI 백엔드 패키지
+  assets/readme/   README 표시용 이미지 자산
+  docs/            포트폴리오와 작업 메모 같은 로컬 문서, Git 추적 제외
+```
+
+루트 `package.json`은 두 앱을 직접 포함하지 않고 실행 스크립트만 제공합니다. 실제 프런트 의존성은 `front/malppot/package-lock.json`, 백엔드 의존성은 `back/malppot/requirements.txt`를 기준으로 관리합니다.
 
 ## Frontend 데이터 흐름
 
@@ -225,7 +237,14 @@ GET /mypage/report
 
 ## 실행 방법
 
-프런트엔드:
+루트에서 실행:
+
+```bash
+npm run dev:web
+npm run dev:api
+```
+
+프런트엔드만 실행:
 
 ```bash
 cd front/malppot
@@ -233,7 +252,7 @@ npm install
 npm run dev
 ```
 
-백엔드:
+백엔드만 실행:
 
 ```bash
 cd back
@@ -241,6 +260,12 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r malppot/requirements.txt
 python -m uvicorn malppot.main:app --reload
+```
+
+로컬 MySQL과 Redis가 필요하면 루트에서 Docker Compose를 사용할 수 있습니다.
+
+```bash
+docker compose up -d mysql redis
 ```
 
 환경 설정은 `back/malppot/example.config.yaml`을 참고해 DB, JWT, Google OAuth, OpenAI, Azure Speech, Replicate 값을 준비합니다. 실제 키와 비밀번호가 포함된 파일은 커밋하지 않습니다.
@@ -257,15 +282,15 @@ export MALPPOT_REDIS_LOCK_WAIT_TIMEOUT=10
 
 | 홈 | 로그인 |
 | --- | --- |
-| <img src="/docs/imgs/home.png" width="420"> | <img src="/docs/imgs/login.png" width="420"> |
+| <img src="/assets/readme/home.png" width="420"> | <img src="/assets/readme/login.png" width="420"> |
 
 | AI 말벗 | 말소리 연습실 |
 | --- | --- |
-| <img src="/docs/imgs/ai_malbeot.png" width="420"> | <img src="/docs/imgs/speech_result.png" width="420"> |
+| <img src="/assets/readme/ai_malbeot.png" width="420"> | <img src="/assets/readme/speech_result.png" width="420"> |
 
 | 발음 게임 | 마이페이지 |
 | --- | --- |
-| <img src="/docs/imgs/game.png" width="420"> | <img src="/docs/imgs/mypage.png" width="420"> |
+| <img src="/assets/readme/game.png" width="420"> | <img src="/assets/readme/mypage.png" width="420"> |
 
 ## 팀
 
