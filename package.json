@@ -1,0 +1,12 @@
+{
+  "name": "malppot-monorepo",
+  "private": true,
+  "scripts": {
+    "dev:web": "npm --prefix front/malppot run dev",
+    "build:web": "npm --prefix front/malppot run build",
+    "lint:web": "npm --prefix front/malppot run lint",
+    "dev:api": "cd back && python -m uvicorn malppot.main:app --reload",
+    "test:api": "cd back && python -m unittest discover -s malppot/tests",
+    "compile:api": "python3 -m compileall -q back/malppot"
+  }
+}

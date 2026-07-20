@@ -51,6 +51,7 @@ python-multipart==0.0.6
 pytz==2025.2
 PyYAML==6.0.2
 regex==2024.11.6
+redis==5.2.1
 replicate==1.0.7
 requests==2.32.3
 requests-toolbelt==1.0.0

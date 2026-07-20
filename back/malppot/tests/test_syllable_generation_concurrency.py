@@ -33,12 +33,23 @@ class _CountingGpt:
         return "tip"
 
 
+class _BusyRedis:
+    async def set(self, *_args, **_kwargs):
+        return False
+
+    async def eval(self, *_args, **_kwargs):
+        return 0
+
+
 def _make_service(db: _TestDb, gpt: _CountingGpt | None = None) -> SpeechService:
     service = object.__new__(SpeechService)
     service.db = db
     service.gpt_service = gpt or _CountingGpt()
     service._syllable_locks = {}
     service._syllable_locks_guard = asyncio.Lock()
+    service._redis = None
+    service._redis_lock_ttl = 120
+    service._redis_lock_wait_timeout = 0.01
     return service
 
 
@@ -76,6 +87,25 @@ class SyllableGenerationConcurrencyTest(unittest.TestCase):
                 self.assertEqual(rows[0].tongue_url, [])
                 self.assertEqual(rows[0].lips_url, [])
                 self.assertEqual(gpt.calls, 1)
+            finally:
+                session.close()
+
+        asyncio.run(run_test())
+
+    def test_busy_redis_lock_rechecks_without_external_call(self):
+        async def run_test():
+            db = _TestDb()
+            gpt = _CountingGpt()
+            service = _make_service(db, gpt)
+            service._redis = _BusyRedis()
+
+            await service._populate_syllable_gpt_tips(["가"])
+
+            self.assertEqual(gpt.calls, 0)
+            session = db.get_session()
+            try:
+                rows = session.query(Syllable).filter_by(syllable_char="가").all()
+                self.assertEqual(len(rows), 0)
             finally:
                 session.close()
 

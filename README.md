@@ -8,7 +8,7 @@
 입장 → Google 로그인 → AI 말벗 / 말소리 연습실 / 발음 게임 → 음성 평가 → 발음 기록 저장 → 마이페이지 리포트·추천 단어
 ```
 
-<img src="/docs/imgs/thumbnail.png" width="1000">
+<img src="/assets/readme/thumbnail.png" width="1000">
 
 ## 핵심 기능
 
@@ -34,6 +34,7 @@
 | Backend | Python 3.11, FastAPI | REST API, WebSocket, Swagger 문서 자동화 |
 | Backend DI | dependency-injector | 설정, DB 세션, 도메인 서비스 조립 |
 | Backend 영속성 | SQLAlchemy, MySQL | 사용자, 발음 기록, 게임 진행, 추천 단어 저장 |
+| Backend 캐시/락 | Redis | 음절 가이드 생성 구간의 분산 lock과 중복 외부 호출 방지 |
 | 인증 | Google OAuth, PyJWT, HttpOnly refresh cookie | 외부 로그인과 access token 재발급 |
 | 음성 평가 | Azure Cognitive Services Speech SDK | 한국어 발음 정확도, 유창성, 완전성 평가 |
 | AI 대화 | OpenAI Realtime API | 실시간 음성 대화와 발음 피드백 모드 |
@@ -63,6 +64,9 @@ External APIs
   ├─ OpenAI
   └─ Replicate
 
+Redis
+  └─ syllable generation lock
+
 MySQL
   ├─ users, practice_sessions, practice_words, pronunciation_scores
   ├─ syllables, jamo_statistics, recommendation_words
@@ -70,6 +74,18 @@ MySQL
 ```
 
 백엔드는 도메인별로 `controller / service / schema`를 분리합니다. Controller는 HTTP·WebSocket 입출력과 dependency 조립을 맡고, Service는 G2P 변환, 외부 API 호출, 평가 결과 매핑, DB 저장, 통계 갱신 같은 유스케이스를 처리합니다.
+
+## 저장소 구조
+
+```text
+malppot/
+  front/malppot/   React + Vite 프런트엔드
+  back/malppot/    FastAPI 백엔드 패키지
+  assets/readme/   README 표시용 이미지 자산
+  docs/            포트폴리오와 작업 메모 같은 로컬 문서, Git 추적 제외
+```
+
+루트 `package.json`은 두 앱을 직접 포함하지 않고 실행 스크립트만 제공합니다. 실제 프런트 의존성은 `front/malppot/package-lock.json`, 백엔드 의존성은 `back/malppot/requirements.txt`를 기준으로 관리합니다.
 
 ## Frontend 데이터 흐름
 
@@ -121,7 +137,7 @@ POST /speech/convert
 → converted_text 반환
 ```
 
-`syllables`는 한글 음절을 key로 혀모양 URL, 입모양 URL, GPT 조음 팁을 저장합니다. 같은 음절 요청이 동시에 들어와도 기본 행을 먼저 보장하고 음절별 lock으로 중복 insert와 누락 컬럼 문제를 줄입니다.
+`syllables`는 한글 음절을 key로 혀모양 URL, 입모양 URL, GPT 조음 팁을 저장합니다. 같은 음절 요청이 동시에 들어오면 `MALPPOT_REDIS_URL`로 연결된 Redis lock을 먼저 시도하고, lock을 얻은 요청만 OpenAI·Replicate 외부 생성을 수행합니다. lock을 얻지 못한 요청은 DB를 다시 조회해 이미 생성된 캐시를 재사용하며, Redis를 사용할 수 없는 환경에서는 프로세스 내부 `asyncio.Lock`과 `syllables.syllable_char` primary key가 fallback 방어선으로 동작합니다.
 
 ### 3. 발음 평가와 기록 저장
 
@@ -185,6 +201,8 @@ GET /mypage/report
 
 `jamo_statistics`는 자음별 시도 수와 누적 점수를 저장해 반복 계산을 줄입니다. `users`에는 전체 연습 횟수, 연속 연습일, 현재/이전 평균 정확도를 반정규화해 빠르게 조회합니다.
 
+마이페이지 상세 리포트는 `practice_words`와 `pronunciation_scores`를 자음 단위로 반복 조회하지 않고, 필요한 자음 목록을 한 번에 수집한 뒤 위치별 정확도, 오류 유형, 단어 기록, 추천 단어를 map으로 조립합니다. 이를 통해 연습 기록이 늘어날수록 커지던 N+1 조회를 줄이고, 요약 통계는 `users`와 `jamo_statistics`의 반정규화 데이터를 우선 활용합니다.
+
 ## 세션·동시성·안전성
 
 | 항목 | 설계 |
@@ -193,8 +211,9 @@ GET /mypage/report
 | REST 인증 | `Authorization` 헤더를 dependency에서 검증하고 사용자 엔티티를 주입 |
 | WebSocket 인증 | `access_token` query parameter를 검증해 AI 말벗 세션 시작 |
 | 음절 캐시 | `syllables.syllable_char`를 primary key로 사용 |
-| 음절 동시성 | 음절별 `asyncio.Lock`과 선행 row 보장으로 중복 insert와 누락 필드 방지 |
-| 외부 API 비용 절감 | tongue/lips/GPT 데이터가 이미 있으면 외부 생성 호출 생략 |
+| 음절 동시성 | Redis lock, 로컬 `asyncio.Lock`, DB primary key 순서로 동시 생성 충돌 방지 |
+| 외부 API 비용 절감 | lock 보유 요청만 tongue/lips/GPT 생성을 수행하고 나머지는 캐시 재조회 |
+| 마이페이지 조회 | `IN` 조건과 grouped query로 상세 분석·위치별 통계·추천 단어를 bulk 조립 |
 | 게임 점수 저장 | MySQL `ON DUPLICATE KEY UPDATE`로 무한 모드 최고 점수 갱신 |
 | 비밀 관리 | Google, JWT, OpenAI, Azure, Replicate 키는 설정 파일 또는 환경변수로 주입 |
 | 오류 처리 | 도메인별 CustomException을 FastAPI exception handler에서 일관된 JSON으로 변환 |
@@ -218,7 +237,14 @@ GET /mypage/report
 
 ## 실행 방법
 
-프런트엔드:
+루트에서 실행:
+
+```bash
+npm run dev:web
+npm run dev:api
+```
+
+프런트엔드만 실행:
 
 ```bash
 cd front/malppot
@@ -226,7 +252,7 @@ npm install
 npm run dev
 ```
 
-백엔드:
+백엔드만 실행:
 
 ```bash
 cd back
@@ -236,21 +262,35 @@ python -m pip install -r malppot/requirements.txt
 python -m uvicorn malppot.main:app --reload
 ```
 
+로컬 MySQL과 Redis가 필요하면 루트에서 Docker Compose를 사용할 수 있습니다.
+
+```bash
+docker compose up -d mysql redis
+```
+
 환경 설정은 `back/malppot/example.config.yaml`을 참고해 DB, JWT, Google OAuth, OpenAI, Azure Speech, Replicate 값을 준비합니다. 실제 키와 비밀번호가 포함된 파일은 커밋하지 않습니다.
+
+음절 가이드 생성 동시성 제어에 Redis를 사용할 경우 다음 환경 변수를 추가로 설정합니다. Redis 설정이 없으면 단일 프로세스 lock과 DB 제약 조건으로 동작합니다.
+
+```bash
+export MALPPOT_REDIS_URL=redis://localhost:6379/0
+export MALPPOT_REDIS_LOCK_TTL=120
+export MALPPOT_REDIS_LOCK_WAIT_TIMEOUT=10
+```
 
 ## 화면
 
 | 홈 | 로그인 |
 | --- | --- |
-| <img src="/docs/imgs/home.png" width="420"> | <img src="/docs/imgs/login.png" width="420"> |
+| <img src="/assets/readme/home.png" width="420"> | <img src="/assets/readme/login.png" width="420"> |
 
 | AI 말벗 | 말소리 연습실 |
 | --- | --- |
-| <img src="/docs/imgs/ai_malbeot.png" width="420"> | <img src="/docs/imgs/speech_result.png" width="420"> |
+| <img src="/assets/readme/ai_malbeot.png" width="420"> | <img src="/assets/readme/speech_result.png" width="420"> |
 
 | 발음 게임 | 마이페이지 |
 | --- | --- |
-| <img src="/docs/imgs/game.png" width="420"> | <img src="/docs/imgs/mypage.png" width="420"> |
+| <img src="/assets/readme/game.png" width="420"> | <img src="/assets/readme/mypage.png" width="420"> |
 
 ## 팀
 
